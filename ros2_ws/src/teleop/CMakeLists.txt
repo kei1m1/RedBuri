@@ -14,11 +14,15 @@ find_package(redburi_msgs REQUIRED)
 add_executable(joy_base_node src/joy_base_node.cpp)
 ament_target_dependencies(joy_base_node rclcpp sensor_msgs redburi_msgs)
 
+add_executable(joy_arm_joint_node src/joy_arm_joint_node.cpp)
+ament_target_dependencies(joy_arm_joint_node rclcpp sensor_msgs redburi_msgs)
+
 add_executable(joy_mode_node src/joy_mode_node.cpp)
 ament_target_dependencies(joy_mode_node rclcpp sensor_msgs)
 
 install(TARGETS
   joy_base_node
+  joy_arm_joint_node
   joy_mode_node
   DESTINATION lib/${PROJECT_NAME}
 )
