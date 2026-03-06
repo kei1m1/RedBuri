@@ -6,7 +6,7 @@
   <description>
      An automatically generated package with all the configuration and launch files for using the redburi_arm with the MoveIt Motion Planning Framework
   </description>
-  <maintainer email=""></maintainer>
+  <maintainer email="149392536+keitaroi446@users.noreply.github.com">keitaro</maintainer>
 
   <license>BSD</license>
 
@@ -14,7 +14,7 @@
   <url type="bugtracker">https://github.com/ros-planning/moveit2/issues</url>
   <url type="repository">https://github.com/ros-planning/moveit2</url>
 
-  <author email=""></author>
+  <author email="149392536+keitaroi446@users.noreply.github.com">keitaro</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

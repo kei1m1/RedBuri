@@ -7,6 +7,14 @@
   <maintainer email="149392536+keitaroi446@users.noreply.github.com">keitaro</maintainer>
   <license>TODO: License declaration</license>
 
+  <exec_depend>joy</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>moveit_configs_utils</exec_depend>
+  <exec_depend>moveit_servo</exec_depend>
+  <exec_depend>redburi_moveit</exec_depend>
+  <exec_depend>teleop</exec_depend>
+
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
