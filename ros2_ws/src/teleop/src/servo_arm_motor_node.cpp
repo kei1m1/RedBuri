@@ -10,10 +10,10 @@
 #include "std_msgs/msg/float32.hpp"
 #include "redburi_msgs/msg/arm_motor.hpp"
 
-class MoveitArmMotorNode : public rclcpp::Node
+class ServoArmMotorNode : public rclcpp::Node
 {
 public:
-  MoveitArmMotorNode() : Node("moveit_arm_motor_node")
+  ServoArmMotorNode() : Node("servo_arm_motor_node")
   {
     max_joint_rpm_ = declare_parameter<double>("max_joint_rpm", 60.0);
     max_gripper_rpm_ = declare_parameter<double>("max_gripper_rpm", 30.0);
@@ -124,7 +124,7 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MoveitArmMotorNode>());
+  rclcpp::spin(std::make_shared<ServoArmMotorNode>());
   rclcpp::shutdown();
   return 0;
 }

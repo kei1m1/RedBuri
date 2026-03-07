@@ -20,8 +20,8 @@ def generate_launch_description():
     joy_arm_cartesian_param = PathJoinSubstitution(
         [teleop_share, "config", "joy_arm_cartesian_node.yaml"]
     )
-    moveit_arm_motor_param = PathJoinSubstitution(
-        [teleop_share, "config", "moveit_arm_motor_node.yaml"]
+    servo_arm_motor_param = PathJoinSubstitution(
+        [teleop_share, "config", "servo_arm_motor_node.yaml"]
     )
 
     return LaunchDescription(
@@ -71,10 +71,10 @@ def generate_launch_description():
             ),
             Node(
                 package="teleop",
-                executable="moveit_arm_motor_node",
-                name="moveit_arm_motor_node",
+                executable="servo_arm_motor_node",
+                name="servo_arm_motor_node",
                 output="screen",
-                parameters=[moveit_arm_motor_param],
+                parameters=[servo_arm_motor_param],
             ),
         ]
     )
