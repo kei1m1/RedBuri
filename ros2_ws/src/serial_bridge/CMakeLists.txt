@@ -10,11 +10,11 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(redburi_msgs REQUIRED)
 
-add_executable(serial_bridge src/serial_bridge.cpp)
-ament_target_dependencies(serial_bridge rclcpp redburi_msgs)
+add_executable(serial_bridge_node src/serial_bridge_node.cpp)
+ament_target_dependencies(serial_bridge_node rclcpp redburi_msgs)
 
 install(TARGETS
-  serial_bridge
+  serial_bridge_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

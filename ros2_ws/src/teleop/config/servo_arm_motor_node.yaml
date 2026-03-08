@@ -1,0 +1,4 @@
+servo_arm_motor_node:
+  ros__parameters:
+    max_joint_rpm: 60.0
+    max_gripper_rpm: 30.0

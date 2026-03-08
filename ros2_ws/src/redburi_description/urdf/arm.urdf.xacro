@@ -1,0 +1,194 @@
+<?xml version="1.0"?>
+<robot name="redburi_arm" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:property name="link_radius" value="0.03"/>
+  <xacro:property name="link1_len" value="0.20"/>
+  <xacro:property name="link2_len" value="0.16"/>
+  <xacro:property name="link3_len" value="0.12"/>
+  <xacro:property name="link4_len" value="0.10"/>
+  <xacro:property name="link5_len" value="0.05"/>
+  <xacro:property name="link6_len" value="0.05"/>
+  <xacro:property name="link7_len" value="0.08"/>
+  <xacro:property name="gripper_len" value="0.06"/>
+  <xacro:property name="gripper_radius" value="0.02"/>
+  <xacro:property name="mount_roll" value="0.349"/>
+  <xacro:property name="mount_pitch" value="0.0"/>
+  <xacro:property name="mount_yaw" value="0.0"/>
+
+  <material name="gray">
+    <color rgba="0.7 0.7 0.7 1.0"/>
+  </material>
+
+  <link name="base_mount"/>
+
+  <joint name="base_mount_to_base_link" type="fixed">
+    <parent link="base_mount"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="${mount_roll} ${mount_pitch} ${mount_yaw}"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0.025" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.05"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <link name="link_1">
+    <visual>
+      <origin xyz="0 0 ${link1_len / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${link1_len}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="base_link_to_link_1" type="fixed">
+    <parent link="base_link"/>
+    <child link="link_1"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+  </joint>
+
+  <link name="link_2">
+    <visual>
+      <origin xyz="0 0 ${link2_len / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${link2_len}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="joint_1" type="revolute">
+    <parent link="link_1"/>
+    <child link="link_2"/>
+    <origin xyz="0 0 ${link1_len}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.5708" upper="1.5708" effort="1.0" velocity="1.0"/>
+  </joint>
+
+  <link name="link_3">
+    <visual>
+      <origin xyz="0 0 ${link3_len / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${link3_len}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="joint_2" type="revolute">
+    <parent link="link_2"/>
+    <child link="link_3"/>
+    <origin xyz="0 0 ${link2_len}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.5708" upper="1.5708" effort="1.0" velocity="1.0"/>
+  </joint>
+
+  <link name="link_4">
+    <visual>
+      <origin xyz="0 0 ${link4_len / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${link4_len}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="joint_3" type="revolute">
+    <parent link="link_3"/>
+    <child link="link_4"/>
+    <origin xyz="0 0 ${link3_len}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.5708" upper="1.5708" effort="1.0" velocity="1.0"/>
+  </joint>
+
+  <link name="link_5">
+    <visual>
+      <origin xyz="0 0 ${link5_len / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${link5_len}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="joint_4" type="revolute">
+    <parent link="link_4"/>
+    <child link="link_5"/>
+    <origin xyz="0 0 ${link4_len}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14159" upper="3.14159" effort="1.0" velocity="1.0"/>
+  </joint>
+
+  <link name="link_6">
+    <visual>
+      <origin xyz="0 0 ${link6_len / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${link6_len}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="joint_5" type="revolute">
+    <parent link="link_5"/>
+    <child link="link_6"/>
+    <origin xyz="0 0 ${link5_len}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.5708" upper="1.5708" effort="1.0" velocity="1.0"/>
+  </joint>
+
+  <link name="link_7">
+    <visual>
+      <origin xyz="0 0 ${link7_len / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${link7_len}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="joint_6" type="revolute">
+    <parent link="link_6"/>
+    <child link="link_7"/>
+    <origin xyz="0 0 ${link6_len}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14159" upper="3.14159" effort="1.0" velocity="1.0"/>
+  </joint>
+
+  <link name="gripper_link">
+    <visual>
+      <origin xyz="0 0 ${gripper_len / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${gripper_radius}" length="${gripper_len}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="gripper_fixed" type="fixed">
+    <parent link="link_7"/>
+    <child link="gripper_link"/>
+    <origin xyz="0 0 ${link7_len}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="tool0">
+    <visual>
+      <origin xyz="0 0 0.015" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.015"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="tool0_fixed" type="fixed">
+    <parent link="gripper_link"/>
+    <child link="tool0"/>
+    <origin xyz="0 0 ${gripper_len}" rpy="0 0 0"/>
+  </joint>
+</robot>

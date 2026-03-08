@@ -1,0 +1,12 @@
+# Controller: DualShock 4
+joy_arm_cartesian_node:
+  ros__parameters:
+    deadzone_x: 0.1
+    deadzone_y: 0.1
+    deadzone_z: 0.1
+    input_max_x: 0.9
+    input_max_y: 0.9
+    input_max_z: 0.9
+    max_linear_x: 0.1
+    max_linear_y: 0.1
+    max_linear_z: 0.1

@@ -3,7 +3,7 @@
 #include <memory>
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
-#include "redburi_msgs/msg/arm_joint.hpp"
+#include "redburi_msgs/msg/arm_motor.hpp"
 
 class JoyArmJointNode : public rclcpp::Node
 {
@@ -22,7 +22,7 @@ public:
         joy_arm_joint_callback(msg);
       }
     );
-    arm_pub_ = create_publisher<redburi_msgs::msg::ArmJoint>("/arm_joint", 10);
+    arm_pub_ = create_publisher<redburi_msgs::msg::ArmMotor>("/arm_motor", 10);
   }
 
 private:
@@ -36,11 +36,11 @@ private:
   bool was_next_button_pressed_{};
   bool was_prev_button_pressed_{};
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
-  rclcpp::Publisher<redburi_msgs::msg::ArmJoint>::SharedPtr arm_pub_;
+  rclcpp::Publisher<redburi_msgs::msg::ArmMotor>::SharedPtr arm_pub_;
 
   void joy_arm_joint_callback(sensor_msgs::msg::Joy::SharedPtr msg)
   {
-    redburi_msgs::msg::ArmJoint arm;
+    redburi_msgs::msg::ArmMotor arm;
     const size_t max_button_idx = static_cast<size_t>(
       std::max(next_button_, prev_button_));
     const size_t axis_idx = static_cast<size_t>(axis_drive_);
