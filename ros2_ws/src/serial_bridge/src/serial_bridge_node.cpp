@@ -9,7 +9,6 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
-
 #include "rclcpp/rclcpp.hpp"
 #include "redburi_msgs/msg/arm_motor.hpp"
 #include "redburi_msgs/msg/base_motor.hpp"
@@ -78,6 +77,7 @@ private:
   rclcpp::Subscription<redburi_msgs::msg::BaseMotor>::SharedPtr base_sub_;
   rclcpp::Subscription<redburi_msgs::msg::ArmMotor>::SharedPtr arm_sub_;
   rclcpp::TimerBase::SharedPtr tx_timer_;
+  std::string rx_line_buffer_{};
 
   static float safeFloat(float v)
   {
@@ -204,6 +204,60 @@ private:
 
     sendLine(b.str());
     sendLine(a.str());
+    pollRxLines();
+  }
+
+  void pollRxLines()
+  {
+    if (serial_fd_ < 0) {
+      return;
+    }
+
+    char buf[256]{};
+    while (true) {
+      const ssize_t n = ::read(serial_fd_, buf, sizeof(buf));
+      if (n > 0) {
+        for (ssize_t i = 0; i < n; ++i) {
+          const char c = buf[i];
+          if (c == '\r') {
+            continue;
+          }
+          if (c == '\n') {
+            if (!rx_line_buffer_.empty()) {
+              RCLCPP_INFO(get_logger(), "RX: %s", rx_line_buffer_.c_str());
+              rx_line_buffer_.clear();
+            }
+            continue;
+          }
+
+          if (rx_line_buffer_.size() < 255) {
+            rx_line_buffer_.push_back(c);
+          } else {
+            // Drop too-long line and wait for next newline.
+            rx_line_buffer_.clear();
+          }
+        }
+        continue;
+      }
+
+      if (n == 0) {
+        break;
+      }
+
+      if (errno == EINTR) {
+        continue;
+      }
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        break;
+      }
+
+      RCLCPP_ERROR_THROTTLE(
+        get_logger(), *get_clock(), 2000, "serial read failed: %s", std::strerror(errno));
+      ::close(serial_fd_);
+      serial_fd_ = -1;
+      rx_line_buffer_.clear();
+      break;
+    }
   }
 };
 
