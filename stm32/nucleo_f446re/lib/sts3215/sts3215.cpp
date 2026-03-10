@@ -4,19 +4,41 @@
 #include "usart.h"
 #include <cstring>
 
+namespace {
+constexpr size_t kMaxStsInstances = 8U;
+STS3215* s_stsInstances[kMaxStsInstances] = {nullptr};
+size_t s_stsInstanceCount = 0U;
+}
+
 STS3215::STS3215(UART_HandleTypeDef* huart, uint8_t id,
                  GPIO_TypeDef* ledPort, uint16_t ledPin)
 : huart_(huart), id_(id), startPos_(-1), zeroPos_(0), zeroCaptured_(false),
   zeroDirReversed_(false), lastZeroDeg_(0.0f), lastZeroDegValid_(false),
   clampTargetDeg_(0.0f), clampTargetInited_(false),
+  uart_state_(UartState::Idle),
+  tx_msg_{0}, rx_msg_{0}, last_pos_(-1), last_pos_valid_(false),
   ledPort_(ledPort), ledPin_(ledPin)
-{}
+{
+    registerInstance(this);
+}
 
 uint8_t STS3215::calcChecksum(const uint8_t* msg, size_t len) {
     // 仕様：msg[2] ～ msg[len-2] の加算を反転 → msg[len-1]
     uint8_t sum = 0;
     for (size_t i = 2; i + 1 < len; ++i) sum += msg[i];
     return static_cast<uint8_t>(~sum);
+}
+
+void STS3215::registerInstance(STS3215* inst)
+{
+    if (inst == nullptr) return;
+    for (size_t i = 0; i < s_stsInstanceCount; ++i) {
+        if (s_stsInstances[i] == inst) return;
+    }
+    if (s_stsInstanceCount < kMaxStsInstances) {
+        s_stsInstances[s_stsInstanceCount] = inst;
+        ++s_stsInstanceCount;
+    }
 }
 
 HAL_StatusTypeDef STS3215::setMode(uint8_t mode) {
@@ -29,6 +51,94 @@ HAL_StatusTypeDef STS3215::setMode(uint8_t mode) {
     while (__HAL_UART_GET_FLAG(huart_, UART_FLAG_TC) == RESET) { /*wait*/ }
     toRx();
     return HAL_OK;
+}
+
+bool STS3215::requestPositionIT()
+{
+    if (uart_state_ != UartState::Idle) return false;
+    for (size_t i = 0; i < s_stsInstanceCount; ++i) {
+        STS3215* inst = s_stsInstances[i];
+        if (inst == nullptr) continue;
+        if (inst->huart_ != huart_) continue;
+        if (inst->uart_state_ != UartState::Idle) return false;
+    }
+
+    // Read 命令: FF FF ID 04 02 38 02 CHK
+    tx_msg_[0] = 0xFF;
+    tx_msg_[1] = 0xFF;
+    tx_msg_[2] = id_;
+    tx_msg_[3] = 4;
+    tx_msg_[4] = 2;
+    tx_msg_[5] = 56;
+    tx_msg_[6] = 2;
+    tx_msg_[7] = calcChecksum(tx_msg_, sizeof(tx_msg_));
+
+    __HAL_UART_CLEAR_OREFLAG(huart_);
+#if defined(__HAL_UART_CLEAR_IDLEFLAG)
+    __HAL_UART_CLEAR_IDLEFLAG(huart_);
+#endif
+#if defined(__HAL_UART_FLUSH_DRREGISTER)
+    __HAL_UART_FLUSH_DRREGISTER(huart_);
+#endif
+
+    toTx();
+    uart_state_ = UartState::TxPending;
+    if (HAL_UART_Transmit_IT(huart_, tx_msg_, sizeof(tx_msg_)) != HAL_OK) {
+        uart_state_ = UartState::Idle;
+        return false;
+    }
+    return true;
+}
+
+void STS3215::onUartTxCplt(UART_HandleTypeDef* huart)
+{
+    for (size_t i = 0; i < s_stsInstanceCount; ++i) {
+        STS3215* inst = s_stsInstances[i];
+        if (inst == nullptr) continue;
+        if (inst->huart_ != huart) continue;
+        if (inst->uart_state_ != UartState::TxPending) continue;
+
+        inst->toRx();
+        inst->uart_state_ = UartState::RxPending;
+        if (HAL_UART_Receive_IT(inst->huart_, inst->rx_msg_, sizeof(inst->rx_msg_)) != HAL_OK) {
+            inst->uart_state_ = UartState::Idle;
+        }
+        return;
+    }
+}
+
+void STS3215::onUartRxCplt(UART_HandleTypeDef* huart)
+{
+    for (size_t i = 0; i < s_stsInstanceCount; ++i) {
+        STS3215* inst = s_stsInstances[i];
+        if (inst == nullptr) continue;
+        if (inst->huart_ != huart) continue;
+        if (inst->uart_state_ != UartState::RxPending) continue;
+
+        inst->uart_state_ = UartState::Idle;
+        const uint8_t* rx = inst->rx_msg_;
+        if (rx[0] == 0xFF && rx[1] == 0xFF && rx[2] == inst->id_ && rx[3] == 4) {
+            const uint8_t chk = calcChecksum(rx, sizeof(inst->rx_msg_));
+            if (chk == rx[7]) {
+                const int16_t pos = static_cast<int16_t>((rx[6] << 8) | rx[5]);
+                inst->last_pos_ = pos;
+                inst->last_pos_valid_ = true;
+                inst->startPos_ = pos;
+            }
+        }
+        return;
+    }
+}
+
+void STS3215::onUartError(UART_HandleTypeDef* huart)
+{
+    for (size_t i = 0; i < s_stsInstanceCount; ++i) {
+        STS3215* inst = s_stsInstances[i];
+        if (inst == nullptr) continue;
+        if (inst->huart_ != huart) continue;
+        inst->uart_state_ = UartState::Idle;
+        return;
+    }
 }
 
 HAL_StatusTypeDef STS3215::setPosition(uint16_t position, uint16_t time_ms, uint16_t speed) {

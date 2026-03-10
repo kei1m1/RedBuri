@@ -1,6 +1,7 @@
 #pragma once
 #include "main.h"
 #include <stdint.h>
+#include <cstddef>
 #include "usart.h"
 #include "gpio.h"
 
@@ -70,12 +71,25 @@ public:
                                        uint16_t speed = 0);
     float getClampedTargetDeg() const { return clampTargetDeg_; }
 
+    // --- Non-blocking (UART IT) ---
+    bool requestPositionIT();
+    bool isUartBusy() const { return uart_state_ != UartState::Idle; }
+    bool hasLastPosition() const { return last_pos_valid_; }
+    int16_t getLastPosition() const { return last_pos_; }
+    float getLastAngleDeg() const { return last_pos_valid_ ? ticksToDeg(static_cast<uint16_t>(last_pos_)) : -1.0f; }
+    static void onUartTxCplt(UART_HandleTypeDef* huart);
+    static void onUartRxCplt(UART_HandleTypeDef* huart);
+    static void onUartError(UART_HandleTypeDef* huart);
+
     // 角度→ティック（4096/360）
     static int16_t degToTicks(float deg);
     static uint16_t degToPos(float deg);   // 0～360deg -> 0～4095（飽和）
     static float ticksToDeg(uint16_t ticks); // 0～4095 -> 0～360deg
 
 private:
+    enum class UartState : uint8_t { Idle, TxPending, RxPending };
+    static void registerInstance(STS3215* inst);
+
     UART_HandleTypeDef* huart_;
     uint8_t             id_;
     int16_t             startPos_;      // -1 = 未確定
@@ -86,6 +100,11 @@ private:
     bool                lastZeroDegValid_;
     float               clampTargetDeg_;
     bool                clampTargetInited_;
+    volatile UartState  uart_state_;
+    uint8_t             tx_msg_[8];
+    uint8_t             rx_msg_[8];
+    int16_t             last_pos_;
+    bool                last_pos_valid_;
     GPIO_TypeDef*       ledPort_;       // 任意
     uint16_t            ledPin_;        // 任意
 
