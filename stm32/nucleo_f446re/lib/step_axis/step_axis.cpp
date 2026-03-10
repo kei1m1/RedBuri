@@ -1,6 +1,12 @@
 #include "step_axis.hpp"
 #include <cmath>
 
+namespace {
+constexpr size_t kMaxRegisteredAxes = 8U;
+StepAxis* s_registeredAxes[kMaxRegisteredAxes] = {nullptr};
+size_t s_registeredAxisCount = 0U;
+}
+
 StepAxis::StepAxis(TIM_HandleTypeDef* timer,
                    uint32_t timer_channel,
                    GPIO_TypeDef* dir_port,
@@ -21,6 +27,7 @@ StepAxis::StepAxis(TIM_HandleTypeDef* timer,
       running_(false),
       current_deg_(0.0f)
 {
+    registerInstance(this);
 }
 
 TIM_HandleTypeDef* StepAxis::timer() const
@@ -31,6 +38,11 @@ TIM_HandleTypeDef* StepAxis::timer() const
 bool StepAxis::isRunning() const
 {
     return running_;
+}
+
+float StepAxis::getCurrentDeg() const
+{
+    return current_deg_;
 }
 
 void StepAxis::setStepFrequencyHz(uint32_t step_hz)
@@ -65,6 +77,43 @@ void StepAxis::onPulseFinished()
     if (remaining_steps_ == 0U) {
         HAL_TIM_PWM_Stop_IT(timer_, channel_);
         running_ = false;
+    }
+}
+
+void StepAxis::moveAxisToDeg(StepAxis* const* axes,
+                             size_t axis_count,
+                             size_t axis_index,
+                             float target_deg)
+{
+    if (axes == nullptr) return;
+    if (axis_index >= axis_count) return;
+    if (axes[axis_index] == nullptr) return;
+    axes[axis_index]->moveToDeg(target_deg);
+}
+
+void StepAxis::onPulseFinishedForTimer(TIM_HandleTypeDef* htim)
+{
+    if (htim == nullptr) return;
+    for (size_t i = 0; i < s_registeredAxisCount; ++i) {
+        StepAxis* const axis = s_registeredAxes[i];
+        if (axis == nullptr) {
+            continue;
+        }
+        if (axis->timer() != htim) continue;
+        axis->onPulseFinished();
+        return;
+    }
+}
+
+void StepAxis::registerInstance(StepAxis* axis)
+{
+    if (axis == nullptr) return;
+    for (size_t i = 0; i < s_registeredAxisCount; ++i) {
+        if (s_registeredAxes[i] == axis) return;
+    }
+    if (s_registeredAxisCount < kMaxRegisteredAxes) {
+        s_registeredAxes[s_registeredAxisCount] = axis;
+        ++s_registeredAxisCount;
     }
 }
 

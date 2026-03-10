@@ -7,6 +7,8 @@
 STS3215::STS3215(UART_HandleTypeDef* huart, uint8_t id,
                  GPIO_TypeDef* ledPort, uint16_t ledPin)
 : huart_(huart), id_(id), startPos_(-1), zeroPos_(0), zeroCaptured_(false),
+  zeroDirReversed_(false), lastZeroDeg_(0.0f), lastZeroDegValid_(false),
+  clampTargetDeg_(0.0f), clampTargetInited_(false),
   ledPort_(ledPort), ledPin_(ledPin)
 {}
 
@@ -189,8 +191,9 @@ HAL_StatusTypeDef STS3215::moveByTicks(int16_t delta_ticks, uint32_t timeout_ms,
     }
 
     int32_t target = static_cast<int32_t>(current) + static_cast<int32_t>(delta_ticks);
-    target %= 4096;
-    if (target < 0) target += 4096;
+    // 周回させず 0..4095 に飽和
+    if (target < 0) target = 0;
+    if (target > 4095) target = 4095;
     const HAL_StatusTypeDef st = setPosition(static_cast<uint16_t>(target), time_ms, speed);
     if (st == HAL_OK) {
         startPos_ = static_cast<int16_t>(target);
@@ -207,21 +210,42 @@ HAL_StatusTypeDef STS3215::captureZero(uint32_t timeout_ms) {
     if (current < 0) return HAL_ERROR;
     zeroPos_ = static_cast<uint16_t>(current);
     zeroCaptured_ = true;
+    lastZeroDeg_ = 0.0f;
+    lastZeroDegValid_ = true;
+    clampTargetDeg_ = 0.0f;
+    clampTargetInited_ = false;
     return HAL_OK;
 }
 
 float STS3215::getAngleFromZeroDeg(uint32_t timeout_ms) {
-    const int16_t current = getPosition(timeout_ms);
-    if (current < 0) return -1.0f;
+    int16_t current = -1;
+    for (int i = 0; i < 3; ++i) {
+        current = getPosition(timeout_ms);
+        if (current >= 0) break;
+        HAL_Delay(2);
+    }
+    if (current < 0) {
+        // 通信瞬断時は直近値を返して制御を継続しやすくする
+        if (lastZeroDegValid_) return lastZeroDeg_;
+        return -1.0f;
+    }
     if (!zeroCaptured_) {
         zeroPos_ = static_cast<uint16_t>(current);
         zeroCaptured_ = true;
+        lastZeroDeg_ = 0.0f;
+        lastZeroDegValid_ = true;
+        return 0.0f;
     }
 
-    int32_t rel = static_cast<int32_t>(current) - static_cast<int32_t>(zeroPos_);
+    int32_t rel = zeroDirReversed_
+        ? static_cast<int32_t>(zeroPos_) - static_cast<int32_t>(current)
+        : static_cast<int32_t>(current) - static_cast<int32_t>(zeroPos_);
     rel %= 4096;
     if (rel < 0) rel += 4096;
-    return ticksToDeg(static_cast<uint16_t>(rel));
+    const float deg = ticksToDeg(static_cast<uint16_t>(rel));
+    lastZeroDeg_ = deg;
+    lastZeroDegValid_ = true;
+    return deg;
 }
 
 HAL_StatusTypeDef STS3215::setAngleFromZeroDeg(float angle_deg, uint16_t time_ms, uint16_t speed) {
@@ -230,12 +254,45 @@ HAL_StatusTypeDef STS3215::setAngleFromZeroDeg(float angle_deg, uint16_t time_ms
     }
 
     const uint16_t rel = degToPos(angle_deg);
-    uint16_t target = static_cast<uint16_t>((static_cast<uint32_t>(zeroPos_) + rel) % 4096U);
+    uint16_t target = zeroDirReversed_
+        ? static_cast<uint16_t>((static_cast<uint32_t>(zeroPos_) + 4096U - rel) % 4096U)
+        : static_cast<uint16_t>((static_cast<uint32_t>(zeroPos_) + rel) % 4096U);
     const HAL_StatusTypeDef st = setPosition(target, time_ms, speed);
     if (st == HAL_OK) {
         startPos_ = static_cast<int16_t>(target);
     }
     return st;
+}
+
+HAL_StatusTypeDef STS3215::setClampedTargetDeg(float angle_deg, uint16_t time_ms, uint16_t speed) {
+    const float clamped = clampDeg01(angle_deg);
+    // 360.0degは0degと同値になるため、実際の指令は1tick手前にする
+    float command_deg = clamped;
+    if (clamped >= 360.0f) {
+        command_deg = 360.0f - (360.0f / 4096.0f);
+    }
+    const HAL_StatusTypeDef st = setAngleFromZeroDeg(command_deg, time_ms, speed);
+    if (st == HAL_OK) {
+        clampTargetDeg_ = clamped;
+        clampTargetInited_ = true;
+    }
+    return st;
+}
+
+HAL_StatusTypeDef STS3215::moveClampedByDeg(float delta_deg, uint16_t time_ms, uint16_t speed) {
+    if (!clampTargetInited_) {
+        const float current = getAngleFromZeroDeg(40);
+        if (current < 0.0f) return HAL_ERROR;
+        clampTargetDeg_ = clampDeg01(current);
+        clampTargetInited_ = true;
+    }
+    return setClampedTargetDeg(clampTargetDeg_ + delta_deg, time_ms, speed);
+}
+
+float STS3215::clampDeg01(float deg) {
+    if (deg < 0.0f) return 0.0f;
+    if (deg > 360.0f) return 360.0f;
+    return deg;
 }
 
 int16_t STS3215::degToTicks(float deg) {
@@ -248,12 +305,13 @@ int16_t STS3215::degToTicks(float deg) {
 }
 
 uint16_t STS3215::degToPos(float deg) {
-    float wrapped = std::fmod(deg, 360.0f);
-    if (wrapped < 0.0f) wrapped += 360.0f;
-    const double ticks = static_cast<double>(wrapped) * (4096.0 / 360.0);
+    if (deg <= 0.0f) return 0U;
+    if (deg >= 360.0f) return 4095U; // 360deg(=4096tick相当)は最大tickへ飽和
+
+    const double ticks = static_cast<double>(deg) * (4096.0 / 360.0);
     long pos = std::lround(ticks);
-    pos %= 4096;
-    if (pos < 0) pos += 4096;
+    if (pos < 0) pos = 0;
+    if (pos > 4095) pos = 4095;
     return static_cast<uint16_t>(pos);
 }
 

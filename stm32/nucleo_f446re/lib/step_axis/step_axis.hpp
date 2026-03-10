@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include "main.h"
 
@@ -17,12 +18,19 @@ public:
 
     TIM_HandleTypeDef* timer() const;
     bool isRunning() const;
+    float getCurrentDeg() const;
 
     void setStepFrequencyHz(uint32_t step_hz);
     void moveToDeg(float target_deg);
     void onPulseFinished();
+    static void moveAxisToDeg(StepAxis* const* axes,
+                              size_t axis_count,
+                              size_t axis_index,
+                              float target_deg);
+    static void onPulseFinishedForTimer(TIM_HandleTypeDef* htim);
 
 private:
+    static void registerInstance(StepAxis* axis);
     uint32_t angleToSteps(float delta_deg) const;
     void startMoveRelativeDeg(float delta_deg);
 
