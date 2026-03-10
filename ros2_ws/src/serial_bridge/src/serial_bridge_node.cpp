@@ -13,7 +13,7 @@
 #include <vector>
 #include "rclcpp/rclcpp.hpp"
 #include "redburi_msgs/msg/arm_motor.hpp"
-#include "redburi_msgs/msg/base_motor.hpp"
+#include "redburi_msgs/msg/base_command.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/float32.hpp"
 
@@ -26,10 +26,10 @@ public:
     tx_rate_hz_ = declare_parameter<double>("tx_rate_hz", 50.0);
     command_timeout_sec_ = declare_parameter<double>("command_timeout_sec", 0.2);
 
-    base_sub_ = create_subscription<redburi_msgs::msg::BaseMotor>(
-      "/base_motor",
+    base_sub_ = create_subscription<redburi_msgs::msg::BaseCommand>(
+      "/base_cmd",
       10,
-      [this](const redburi_msgs::msg::BaseMotor::SharedPtr msg)
+      [this](const redburi_msgs::msg::BaseCommand::SharedPtr msg)
       {
         latest_base_ = *msg;
         has_base_ = true;
@@ -76,12 +76,12 @@ private:
 
   bool has_base_{false};
   bool has_arm_{false};
-  redburi_msgs::msg::BaseMotor latest_base_{};
+  redburi_msgs::msg::BaseCommand latest_base_{};
   redburi_msgs::msg::ArmMotor latest_arm_{};
   rclcpp::Time last_base_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time last_arm_time_{0, 0, RCL_ROS_TIME};
 
-  rclcpp::Subscription<redburi_msgs::msg::BaseMotor>::SharedPtr base_sub_;
+  rclcpp::Subscription<redburi_msgs::msg::BaseCommand>::SharedPtr base_sub_;
   rclcpp::Subscription<redburi_msgs::msg::ArmMotor>::SharedPtr arm_sub_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr steer_state_pub_;
@@ -220,7 +220,7 @@ private:
       }
     }
 
-    redburi_msgs::msg::BaseMotor base{};
+    redburi_msgs::msg::BaseCommand base{};
     redburi_msgs::msg::ArmMotor arm{};
     const auto now_time = now();
     const auto timeout = rclcpp::Duration::from_seconds(command_timeout_sec_);
@@ -236,10 +236,8 @@ private:
     b.setf(std::ios::fixed);
     b.precision(3);
     b << "B,"
-      << safeFloat(base.motor_f_rpm) << ","
-      << safeFloat(base.motor_r_rpm) << ","
-      << safeFloat(base.motor_l_rpm) << ","
-      << safeFloat(base.steer_deg) << "\n";
+      << safeFloat(base.motor_rpm) << ","
+      << safeFloat(base.target_steer_deg) << "\n";
 
     std::ostringstream a;
     a.setf(std::ios::fixed);
