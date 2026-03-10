@@ -1,0 +1,62 @@
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
+
+
+def generate_launch_description():
+    joy_dev = LaunchConfiguration("joy_dev")
+    joy_deadzone = LaunchConfiguration("joy_deadzone")
+    joy_autorepeat_rate = LaunchConfiguration("joy_autorepeat_rate")
+
+    teleop_share = FindPackageShare("teleop")
+    serial_bridge_share = FindPackageShare("serial_bridge")
+
+    joy_base_param = PathJoinSubstitution(
+        [teleop_share, "config", "joy_base_node.yaml"]
+    )
+    serial_bridge_param = PathJoinSubstitution(
+        [serial_bridge_share, "config", "serial_bridge.yaml"]
+    )
+
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument("joy_dev", default_value="/dev/input/js0"),
+            DeclareLaunchArgument("joy_deadzone", default_value="0.1"),
+            DeclareLaunchArgument("joy_autorepeat_rate", default_value="60.0"),
+            Node(
+                package="joy",
+                executable="joy_node",
+                name="joy_node",
+                output="screen",
+                parameters=[
+                    {
+                        "dev": joy_dev,
+                        "deadzone": joy_deadzone,
+                        "autorepeat_rate": joy_autorepeat_rate,
+                    }
+                ],
+            ),
+            Node(
+                package="teleop",
+                executable="joy_mode_node",
+                name="joy_mode_node",
+                output="screen",
+            ),
+            Node(
+                package="teleop",
+                executable="joy_base_node",
+                name="joy_base_node",
+                output="screen",
+                parameters=[joy_base_param],
+            ),
+            Node(
+                package="serial_bridge",
+                executable="serial_bridge_node",
+                name="serial_bridge_node",
+                output="screen",
+                parameters=[serial_bridge_param],
+            ),
+        ]
+    )

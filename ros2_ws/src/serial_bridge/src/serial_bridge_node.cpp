@@ -16,6 +16,7 @@
 #include "redburi_msgs/msg/base_command.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/float32.hpp"
+#include "std_msgs/msg/string.hpp"
 
 class SerialBridgeNode : public rclcpp::Node
 {
@@ -34,6 +35,13 @@ public:
         latest_base_ = *msg;
         has_base_ = true;
         last_base_time_ = now();
+        RCLCPP_INFO_THROTTLE(
+          get_logger(),
+          *get_clock(),
+          1000,
+          "base_cmd rx motor_rpm=%.3f steer_deg=%.3f",
+          static_cast<double>(latest_base_.motor_rpm),
+          static_cast<double>(latest_base_.target_steer_deg));
       });
 
     arm_sub_ = create_subscription<redburi_msgs::msg::ArmMotor>(
@@ -48,6 +56,7 @@ public:
 
     joint_state_pub_ = create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
     steer_state_pub_ = create_publisher<std_msgs::msg::Float32>("/steer_state", 10);
+    raw_rx_line_pub_ = create_publisher<std_msgs::msg::String>("/stm32_rx_line", 10);
 
     openSerial();
 
@@ -85,6 +94,7 @@ private:
   rclcpp::Subscription<redburi_msgs::msg::ArmMotor>::SharedPtr arm_sub_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr steer_state_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr raw_rx_line_pub_;
   rclcpp::TimerBase::SharedPtr tx_timer_;
   std::string rx_line_buffer_{};
   const std::vector<std::string> joint_names_{
@@ -253,6 +263,12 @@ private:
 
     sendLine(b.str());
     sendLine(a.str());
+    RCLCPP_INFO_THROTTLE(
+      get_logger(),
+      *get_clock(),
+      1000,
+      "tx %s",
+      b.str().c_str());
     pollRxLines();
   }
 
@@ -314,6 +330,10 @@ private:
     if (line.empty()) {
       return;
     }
+
+    std_msgs::msg::String raw{};
+    raw.data = line;
+    raw_rx_line_pub_->publish(raw);
 
     std::vector<float> values{};
 
