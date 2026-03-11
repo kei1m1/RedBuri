@@ -52,17 +52,15 @@ void BaseMotorReceiver::callback()
 
 void BaseMotorReceiver::computeMotorRpm()
 {
-    if(target_steer_deg_ > 89)
+    if(target_steer_deg_ == 90 && std::fabs(current_steer_deg_ -90) < 2)
     {
         rear_right_rpm_ = front_rpm_ * (TREAD_M / 2) / WHEELBASE_M;
         rear_left_rpm_ = -rear_right_rpm_;
         return;
     }
 
-    if(front_rpm_ == 0.0f)
+    if(std::fabs(current_steer_deg_) > 30.0f)
     {
-        rear_right_rpm_ = 0.0f;
-        rear_left_rpm_ = 0.0f;
         return;
     }
 
@@ -106,6 +104,11 @@ void BaseMotorReceiver::computeMotorRpm()
         rear_left_rpm_ = outer;
         rear_right_rpm_ = inner;
     }
+}
+
+void BaseMotorReceiver::setCurrentSteerDeg(float steer_deg)
+{
+    current_steer_deg_ = steer_deg;
 }
 
 float BaseMotorReceiver::getFrontRpm() const

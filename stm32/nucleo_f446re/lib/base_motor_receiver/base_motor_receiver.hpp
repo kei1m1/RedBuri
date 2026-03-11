@@ -8,6 +8,7 @@ public:
     void init();
     void callback();
     void computeMotorRpm();
+    void setCurrentSteerDeg(float steer_deg);
     float getFrontRpm() const;
     float getRearRightRpm() const;
     float getRearLeftRpm() const;
