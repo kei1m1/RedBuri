@@ -12,13 +12,13 @@ public:
     float getFrontRpm() const;
     float getRearRightRpm() const;
     float getRearLeftRpm() const;
-    float getTargetSteerDeg() const;
 
 private:
     static constexpr float WHEELBASE_M = 0.93053f;
     static constexpr float TREAD_M = 0.675026f;
     static constexpr uint8_t BUF_SIZE{64};
 
+    float motor_rpm_{};
     float front_rpm_{};
     float rear_right_rpm_{};
     float rear_left_rpm_{};
