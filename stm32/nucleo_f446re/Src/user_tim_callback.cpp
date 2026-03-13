@@ -10,6 +10,7 @@ extern "C" void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     if(htim == &htim6)
     {
         c620_control.updateSpeedControl();
+        c620_control.updateHoldControl();
     }
 }
 
