@@ -25,13 +25,7 @@ def generate_launch_description():
     servo_params = copy.deepcopy(
         load_yaml("redburi_moveit", "config/servo.yaml")["servo_node"]["ros__parameters"]
     )
-    servo_params["moveit_servo"]["command_out_topic"] = "/arm_controller/joint_trajectory"
 
-    ros2_controllers_path = os.path.join(
-        get_package_share_directory("redburi_moveit"),
-        "config",
-        "ros2_controllers.yaml",
-    )
     rviz_config_file = os.path.join(
         get_package_share_directory("redburi_moveit"),
         "config",
@@ -62,33 +56,6 @@ def generate_launch_description():
         )
     )
 
-    ros2_control_node = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        output="screen",
-        parameters=[moveit_config.robot_description, ros2_controllers_path],
-    )
-
-    joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=[
-            "joint_state_broadcaster",
-            "--controller-manager",
-            "/controller_manager",
-            "--controller-manager-timeout",
-            "300",
-        ],
-        output="screen",
-    )
-
-    arm_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["arm_controller", "--controller-manager", "/controller_manager"],
-        output="screen",
-    )
-
     servo_node = Node(
         package="moveit_servo",
         executable="servo_node_main",
@@ -107,7 +74,6 @@ def generate_launch_description():
         executable="servo_arm_motor_node",
         name="servo_arm_motor_node",
         output="screen",
-        parameters=[{"servo_trajectory_topic": "/arm_controller/joint_trajectory"}],
     )
 
     rviz_node = Node(
@@ -144,9 +110,6 @@ def generate_launch_description():
         [
             static_virtual_joint_tfs_launch,
             robot_state_publisher_launch,
-            ros2_control_node,
-            joint_state_broadcaster_spawner,
-            arm_controller_spawner,
             servo_node,
             servo_arm_motor_node,
             teleop_launch,

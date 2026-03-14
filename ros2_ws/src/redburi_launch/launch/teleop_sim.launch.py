@@ -20,6 +20,9 @@ def generate_launch_description():
     joy_arm_cartesian_param = PathJoinSubstitution(
         [teleop_share, "config", "joy_arm_cartesian_node.yaml"]
     )
+    arm_joint_state_estimator_param = PathJoinSubstitution(
+        [teleop_share, "config", "arm_joint_state_estimator_node.yaml"]
+    )
     return LaunchDescription(
         [
             DeclareLaunchArgument("joy_dev", default_value="/dev/input/js0"),
@@ -64,6 +67,13 @@ def generate_launch_description():
                 name="joy_arm_cartesian_node",
                 output="screen",
                 parameters=[joy_arm_cartesian_param],
+            ),
+            Node(
+                package="teleop",
+                executable="arm_joint_state_estimator_node",
+                name="arm_joint_state_estimator_node",
+                output="screen",
+                parameters=[arm_joint_state_estimator_param],
             ),
         ]
     )
