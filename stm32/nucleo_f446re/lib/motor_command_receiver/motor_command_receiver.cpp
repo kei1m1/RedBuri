@@ -1,6 +1,5 @@
-#include "motor_command_receiver.hpp"
-
 #include <cmath>
+#include "motor_command_receiver.hpp"
 
 MotorCommandReceiver::MotorCommandReceiver(UART_HandleTypeDef& huart)
     : huart_(huart)

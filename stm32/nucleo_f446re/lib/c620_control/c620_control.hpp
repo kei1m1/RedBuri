@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "tim.h"
 #include "c620_can.hpp"
 
 class C620Control
