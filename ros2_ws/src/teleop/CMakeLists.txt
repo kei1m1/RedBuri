@@ -12,6 +12,7 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(redburi_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(trajectory_msgs REQUIRED)
 
 add_executable(joy_base_node src/joy_base_node.cpp)
 ament_target_dependencies(joy_base_node rclcpp sensor_msgs redburi_msgs)
@@ -25,11 +26,15 @@ ament_target_dependencies(joy_arm_cartesian_node geometry_msgs rclcpp sensor_msg
 add_executable(joy_mode_node src/joy_mode_node.cpp)
 ament_target_dependencies(joy_mode_node rclcpp sensor_msgs)
 
+add_executable(servo_arm_motor_node src/servo_arm_motor_node.cpp)
+ament_target_dependencies(servo_arm_motor_node rclcpp redburi_msgs std_msgs trajectory_msgs)
+
 install(TARGETS
   joy_base_node
   joy_arm_joint_node
   joy_arm_cartesian_node
   joy_mode_node
+  servo_arm_motor_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

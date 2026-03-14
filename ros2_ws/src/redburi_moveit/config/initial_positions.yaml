@@ -1,0 +1,9 @@
+# Default initial positions for redburi_arm's ros2_control fake system
+
+initial_positions:
+  joint_1: 0
+  joint_2: -0.2
+  joint_3: -0.2
+  joint_4: 0
+  joint_5: -0.2
+  joint_6: 0
