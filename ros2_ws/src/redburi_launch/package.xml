@@ -8,12 +8,13 @@
   <license>TODO: License declaration</license>
 
   <exec_depend>joy</exec_depend>
-  <exec_depend>joint_state_publisher_gui</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
   <exec_depend>moveit_configs_utils</exec_depend>
   <exec_depend>moveit_servo</exec_depend>
   <exec_depend>redburi_moveit</exec_depend>
+  <exec_depend>rviz2</exec_depend>
   <exec_depend>serial_bridge</exec_depend>
   <exec_depend>teleop</exec_depend>
 

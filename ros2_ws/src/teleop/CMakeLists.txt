@@ -27,7 +27,7 @@ add_executable(joy_mode_node src/joy_mode_node.cpp)
 ament_target_dependencies(joy_mode_node rclcpp sensor_msgs)
 
 add_executable(servo_arm_motor_node src/servo_arm_motor_node.cpp)
-ament_target_dependencies(servo_arm_motor_node rclcpp trajectory_msgs std_msgs redburi_msgs)
+ament_target_dependencies(servo_arm_motor_node rclcpp redburi_msgs std_msgs trajectory_msgs)
 
 install(TARGETS
   joy_base_node

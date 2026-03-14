@@ -22,6 +22,9 @@ public:
     max_linear_y_ = declare_parameter<double>("max_linear_y");
     max_linear_z_ = declare_parameter<double>("max_linear_z");
     servo_command_frame_ = declare_parameter<std::string>("servo_command_frame", "base_mount");
+    servo_twist_topic_ = declare_parameter<std::string>(
+      "servo_twist_topic", "/servo_node/delta_twist_cmds");
+    gripper_command_topic_ = declare_parameter<std::string>("gripper_command_topic", "/arm_gripper");
 
     joy_sub_ = create_subscription<sensor_msgs::msg::Joy>(
       "/joy_arm_cartesian",
@@ -31,9 +34,8 @@ public:
         joyArmCartesianCallback(msg);
       }
     );
-    twist_pub_ = create_publisher<geometry_msgs::msg::TwistStamped>(
-      "/servo_node/delta_twist_cmds", 10);
-    gripper_pub_ = create_publisher<std_msgs::msg::Float32>("/arm_gripper", 10);
+    twist_pub_ = create_publisher<geometry_msgs::msg::TwistStamped>(servo_twist_topic_, 10);
+    gripper_pub_ = create_publisher<std_msgs::msg::Float32>(gripper_command_topic_, 10);
   }
 
 private:
@@ -52,6 +54,8 @@ private:
   double max_linear_y_{};
   double max_linear_z_{};
   std::string servo_command_frame_{};
+  std::string servo_twist_topic_{};
+  std::string gripper_command_topic_{};
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr gripper_pub_;

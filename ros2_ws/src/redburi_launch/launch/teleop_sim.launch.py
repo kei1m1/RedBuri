@@ -11,15 +11,15 @@ def generate_launch_description():
     joy_autorepeat_rate = LaunchConfiguration("joy_autorepeat_rate")
 
     teleop_share = FindPackageShare("teleop")
-    serial_bridge_share = FindPackageShare("serial_bridge")
-
     joy_base_param = PathJoinSubstitution(
         [teleop_share, "config", "joy_base_node.yaml"]
     )
-    serial_bridge_param = PathJoinSubstitution(
-        [serial_bridge_share, "config", "serial_bridge.yaml"]
+    joy_arm_joint_param = PathJoinSubstitution(
+        [teleop_share, "config", "joy_arm_joint_node.yaml"]
     )
-
+    joy_arm_cartesian_param = PathJoinSubstitution(
+        [teleop_share, "config", "joy_arm_cartesian_node.yaml"]
+    )
     return LaunchDescription(
         [
             DeclareLaunchArgument("joy_dev", default_value="/dev/input/js0"),
@@ -52,11 +52,18 @@ def generate_launch_description():
                 parameters=[joy_base_param],
             ),
             Node(
-                package="serial_bridge",
-                executable="serial_bridge_node",
-                name="serial_bridge_node",
+                package="teleop",
+                executable="joy_arm_joint_node",
+                name="joy_arm_joint_node",
                 output="screen",
-                parameters=[serial_bridge_param],
+                parameters=[joy_arm_joint_param],
+            ),
+            Node(
+                package="teleop",
+                executable="joy_arm_cartesian_node",
+                name="joy_arm_cartesian_node",
+                output="screen",
+                parameters=[joy_arm_cartesian_param],
             ),
         ]
     )

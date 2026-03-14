@@ -6,9 +6,9 @@
 #include <unordered_map>
 
 #include "rclcpp/rclcpp.hpp"
-#include "trajectory_msgs/msg/joint_trajectory.hpp"
-#include "std_msgs/msg/float32.hpp"
 #include "redburi_msgs/msg/arm_motor.hpp"
+#include "std_msgs/msg/float32.hpp"
+#include "trajectory_msgs/msg/joint_trajectory.hpp"
 
 class ServoArmMotorNode : public rclcpp::Node
 {
@@ -17,9 +17,14 @@ public:
   {
     max_joint_rpm_ = declare_parameter<double>("max_joint_rpm", 60.0);
     max_gripper_rpm_ = declare_parameter<double>("max_gripper_rpm", 30.0);
+    servo_trajectory_topic_ = declare_parameter<std::string>(
+      "servo_trajectory_topic", "/servo_node/joint_trajectory");
+    arm_command_topic_ = declare_parameter<std::string>("arm_command_topic", "/arm_motor");
+    gripper_command_topic_ = declare_parameter<std::string>(
+      "gripper_command_topic", "/arm_gripper");
 
     trajectory_sub_ = create_subscription<trajectory_msgs::msg::JointTrajectory>(
-      "/servo_node/joint_trajectory",
+      servo_trajectory_topic_,
       10,
       [this](const trajectory_msgs::msg::JointTrajectory::SharedPtr msg)
       {
@@ -28,7 +33,7 @@ public:
     );
 
     gripper_sub_ = create_subscription<std_msgs::msg::Float32>(
-      "/arm_gripper",
+      gripper_command_topic_,
       10,
       [this](const std_msgs::msg::Float32::SharedPtr msg)
       {
@@ -36,7 +41,7 @@ public:
       }
     );
 
-    arm_pub_ = create_publisher<redburi_msgs::msg::ArmMotor>("/arm_motor", 10);
+    arm_pub_ = create_publisher<redburi_msgs::msg::ArmMotor>(arm_command_topic_, 10);
   }
 
 private:
@@ -49,6 +54,9 @@ private:
   double max_joint_rpm_{};
   double max_gripper_rpm_{};
   double latest_gripper_command_{};
+  std::string servo_trajectory_topic_{};
+  std::string arm_command_topic_{};
+  std::string gripper_command_topic_{};
 
   static int jointIndexFromName(const std::string & name)
   {
@@ -78,30 +86,26 @@ private:
   void trajectoryCallback(const trajectory_msgs::msg::JointTrajectory::SharedPtr msg)
   {
     redburi_msgs::msg::ArmMotor arm{};
+    arm.gripper_rpm = clampRpm(
+      latest_gripper_command_ * max_gripper_rpm_, max_gripper_rpm_);
 
-    if(msg->points.empty() || msg->joint_names.empty())
-    {
-      arm.gripper_rpm = clampRpm(latest_gripper_command_ * max_gripper_rpm_, max_gripper_rpm_);
+    if (msg->points.empty() || msg->joint_names.empty()) {
       arm_pub_->publish(arm);
       return;
     }
 
     const auto & point = msg->points.back();
-    if(point.velocities.empty())
-    {
-      arm.gripper_rpm = clampRpm(latest_gripper_command_ * max_gripper_rpm_, max_gripper_rpm_);
+    if (point.velocities.empty()) {
       arm_pub_->publish(arm);
       return;
     }
 
-    std::array<double, 6> joint_rpm{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    std::array<double, 6> joint_rpm{0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     const size_t n = std::min(msg->joint_names.size(), point.velocities.size());
 
-    for(size_t i = 0; i < n; ++i)
-    {
+    for (size_t i = 0; i < n; ++i) {
       const int idx = jointIndexFromName(msg->joint_names[i]);
-      if(idx < 0)
-      {
+      if (idx < 0) {
         continue;
       }
 
@@ -115,7 +119,6 @@ private:
     arm.joint_4_rpm = joint_rpm[3];
     arm.joint_5_rpm = joint_rpm[4];
     arm.joint_6_rpm = joint_rpm[5];
-    arm.gripper_rpm = clampRpm(latest_gripper_command_ * max_gripper_rpm_, max_gripper_rpm_);
 
     arm_pub_->publish(arm);
   }

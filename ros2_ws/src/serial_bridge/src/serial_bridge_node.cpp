@@ -111,6 +111,11 @@ private:
     return std::isfinite(v) ? v : 0.0f;
   }
 
+  static int safeInt(float v)
+  {
+    return static_cast<int>(std::lround(safeFloat(v)));
+  }
+
   static bool parseCsvFloats(
     const std::string & line, char head, size_t expected_count, std::vector<float> & out_values)
   {
@@ -243,23 +248,19 @@ private:
     }
 
     std::ostringstream b;
-    b.setf(std::ios::fixed);
-    b.precision(3);
     b << "B,"
-      << safeFloat(base.motor_rpm) << ","
-      << safeFloat(base.target_steer_deg) << "\n";
+      << safeInt(base.motor_rpm) << ","
+      << safeInt(base.target_steer_deg) << "\n";
 
     std::ostringstream a;
-    a.setf(std::ios::fixed);
-    a.precision(3);
     a << "A,"
-      << safeFloat(arm.joint_1_rpm) << ","
-      << safeFloat(arm.joint_2_rpm) << ","
-      << safeFloat(arm.joint_3_rpm) << ","
-      << safeFloat(arm.joint_4_rpm) << ","
-      << safeFloat(arm.joint_5_rpm) << ","
-      << safeFloat(arm.joint_6_rpm) << ","
-      << safeFloat(arm.gripper_rpm) << "\n";
+      << safeInt(arm.joint_1_rpm) << ","
+      << safeInt(arm.joint_2_rpm) << ","
+      << safeInt(arm.joint_3_rpm) << ","
+      << safeInt(arm.joint_4_rpm) << ","
+      << safeInt(arm.joint_5_rpm) << ","
+      << safeInt(arm.joint_6_rpm) << ","
+      << safeInt(arm.gripper_rpm) << "\n";
 
     sendLine(b.str());
     sendLine(a.str());
