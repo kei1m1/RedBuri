@@ -78,3 +78,35 @@ void C620Control::updateHoldControl()
         }
     }
 }
+
+void C620Control::updateCurrentAngleDeg()
+{
+    for(uint8_t motor_id = 1; motor_id <= MOTOR_COUNT; motor_id++)
+    {
+        const uint8_t idx = motor_id - 1;
+        uint16_t raw{};
+
+        can_.getAngleRaw(motor_id, raw);
+
+        if(!angle_initialized_[idx])
+        {
+            prev_angle_raw_[idx] = raw;
+            angle_initialized_[idx] = true;
+            continue;
+        }
+
+        int32_t diff = static_cast<int32_t>(raw) - static_cast<int32_t>(prev_angle_raw_[idx]);
+        if(diff > 4096) diff -= 8192;
+        if(diff < -4096) diff += 8192;
+
+        current_angle_deg_[idx] += (static_cast<float>(diff) * 360.0f / 8192.0f) / MOTOR_GEAR_RATIO;
+        prev_angle_raw_[idx] = raw;
+    }
+}
+
+bool C620Control::getCurrentAngleDeg(uint8_t motor_id, float& current_angle_deg)
+{
+    if(motor_id < 1 || motor_id > MOTOR_COUNT) return false;
+    current_angle_deg = current_angle_deg_[motor_id - 1];
+    return true;
+}

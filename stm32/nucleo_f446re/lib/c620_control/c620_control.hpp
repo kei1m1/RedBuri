@@ -12,6 +12,8 @@ public:
     void setTargetSpeed(uint8_t motor_id, float target_rpm);
     void updateSpeedControl();
     void updateHoldControl();
+    void updateCurrentAngleDeg();
+    bool getCurrentAngleDeg(uint8_t motor_id, float& current_angle_deg);
 
 private:
     static constexpr uint8_t MOTOR_COUNT = 6;
@@ -26,4 +28,7 @@ private:
     float target_speed_rpm_[MOTOR_COUNT]{};
     uint16_t target_angle_raw_[MOTOR_COUNT]{};
     bool hold_enabled[MOTOR_COUNT]{};
+    uint16_t prev_angle_raw_[MOTOR_COUNT]{};
+    bool angle_initialized_[MOTOR_COUNT]{};
+    float current_angle_deg_[MOTOR_COUNT]{};
 };
