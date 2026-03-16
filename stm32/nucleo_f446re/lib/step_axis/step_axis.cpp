@@ -53,6 +53,7 @@ void StepAxis::setStepFrequencyHz(uint32_t step_hz)
 {
     if (step_hz < 10U) step_hz = 10U;
     if (step_hz > 20000U) step_hz = 20000U;
+    if(step_hz_ == step_hz) return;
 
     uint32_t arr = (1000000U / step_hz);
     if (arr < 2U) arr = 2U;
@@ -61,6 +62,7 @@ void StepAxis::setStepFrequencyHz(uint32_t step_hz)
     __HAL_TIM_SET_AUTORELOAD(timer_, arr);
     __HAL_TIM_SET_COMPARE(timer_, channel_, (arr + 1U) / 2U);
     __HAL_TIM_SET_COUNTER(timer_, 0U);
+    step_hz_ = step_hz;
 }
 
 void StepAxis::moveToDeg(float target_deg)

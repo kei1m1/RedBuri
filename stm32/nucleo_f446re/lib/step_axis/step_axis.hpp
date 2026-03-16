@@ -61,4 +61,5 @@ private:
     int8_t dir_sign_;
     float current_deg_;
     float target_deg_;
+    uint32_t step_hz_{};
 };
