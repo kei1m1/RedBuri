@@ -15,7 +15,6 @@
 #include "redburi_msgs/msg/arm_command.hpp"
 #include "redburi_msgs/msg/base_command.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
-#include "std_msgs/msg/float32.hpp"
 #include "std_msgs/msg/string.hpp"
 
 class SerialBridgeNode : public rclcpp::Node
@@ -56,7 +55,6 @@ public:
       });
 
     joint_state_pub_ = create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
-    steer_state_pub_ = create_publisher<std_msgs::msg::Float32>("/steer_state", 10);
     raw_rx_line_pub_ = create_publisher<std_msgs::msg::String>("/stm32_rx_line", 10);
 
     openSerial();
@@ -95,18 +93,19 @@ private:
   rclcpp::Subscription<redburi_msgs::msg::BaseCommand>::SharedPtr base_sub_;
   rclcpp::Subscription<redburi_msgs::msg::ArmCommand>::SharedPtr arm_sub_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
-  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr steer_state_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr raw_rx_line_pub_;
   rclcpp::TimerBase::SharedPtr tx_timer_;
   std::string rx_line_buffer_{};
   static constexpr size_t kArmJointCount = 6;
+  static constexpr size_t kJointStateCount = 7;
   const std::vector<std::string> joint_names_{
     "joint_1",
     "joint_2",
     "joint_3",
     "joint_4",
     "joint_5",
-    "joint_6"};
+    "joint_6",
+    "gripper_state"};
 
   static float safeFloat(float v)
   {
@@ -377,26 +376,16 @@ private:
 
     if (line[0] == 'J') {
       if (!parseCsvFloats(line, 'J', kArmJointCount, values) &&
-        !parseCsvFloats(line, 'J', kArmJointCount + 1, values))
+        !parseCsvFloats(line, 'J', kJointStateCount, values))
       {
         RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 2000, "failed to parse J line: %s", line.c_str());
         return;
       }
-      if (values.size() > kArmJointCount) {
-        values.resize(kArmJointCount);
+      if (values.size() > kJointStateCount) {
+        values.resize(kJointStateCount);
       }
       publishJointStates(values);
-      return;
-    }
-
-    if (line[0] == 'S') {
-      if (!parseCsvFloats(line, 'S', 1, values)) {
-        RCLCPP_WARN_THROTTLE(
-          get_logger(), *get_clock(), 2000, "failed to parse S line: %s", line.c_str());
-        return;
-      }
-      publishSteerState(values[0]);
       return;
     }
 
@@ -409,20 +398,16 @@ private:
     constexpr double kJointScale = 1000.0;
     sensor_msgs::msg::JointState msg{};
     msg.header.stamp = now();
-    msg.name = joint_names_;
+    const size_t joint_count = std::min(values.size(), joint_names_.size());
+    msg.name.assign(joint_names_.begin(), joint_names_.begin() + joint_count);
     msg.position.reserve(values.size());
-    for (float value : values) {
+    for (size_t i = 0; i < joint_count; ++i) {
+      const float value = values[i];
       msg.position.push_back(static_cast<double>(value) / kJointScale);
     }
     joint_state_pub_->publish(msg);
   }
 
-  void publishSteerState(float steer_deg)
-  {
-    std_msgs::msg::Float32 msg{};
-    msg.data = steer_deg;
-    steer_state_pub_->publish(msg);
-  }
 };
 
 int main(int argc, char ** argv)

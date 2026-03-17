@@ -4,6 +4,7 @@
 #include <string>
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/joint_state.hpp"
 #include "sensor_msgs/msg/joy.hpp"
 #include "std_msgs/msg/float32.hpp"
 #include "std_msgs/msg/int8.hpp"
@@ -23,6 +24,8 @@ public:
     max_linear_x_ = declare_parameter<double>("max_linear_x");
     max_linear_y_ = declare_parameter<double>("max_linear_y");
     max_linear_z_ = declare_parameter<double>("max_linear_z");
+    gripper_lower_rad_ = declare_parameter<double>("gripper_lower_deg") * DEG_TO_RAD;
+    gripper_upper_rad_ = declare_parameter<double>("gripper_upper_deg") * DEG_TO_RAD;
 
     joy_sub_ = create_subscription<sensor_msgs::msg::Joy>(
       "/joy",
@@ -40,13 +43,23 @@ public:
         control_mode_ = msg->data;
       }
     );
+    joint_state_sub_ = create_subscription<sensor_msgs::msg::JointState>(
+      "/joint_states",
+      10,
+      [this](sensor_msgs::msg::JointState::SharedPtr msg)
+      {
+        jointStateCallback(msg);
+      }
+    );
     twist_pub_ = create_publisher<geometry_msgs::msg::TwistStamped>("/servo_node/delta_twist_cmds", 10);
     joint_6_pub_ = create_publisher<std_msgs::msg::Int8>("/arm_joint_6", 10);
     gripper_pub_ = create_publisher<std_msgs::msg::Float32>("/arm_gripper", 10);
   }
 
 private:
+  static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
   static constexpr const char * SERVO_COMMAND_FRAME = "link_6";
+  static constexpr const char * GRIPPER_STATE_NAME = "gripper_state";
   int axis_x_{4};
   int axis_y_{0};
   int axis_z_{1};
@@ -63,8 +76,13 @@ private:
   double max_linear_x_{};
   double max_linear_y_{};
   double max_linear_z_{};
+  double gripper_lower_rad_{};
+  double gripper_upper_rad_{};
+  double current_gripper_position_{};
+  bool has_gripper_position_{false};
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
   rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr mode_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_pub_;
   rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr joint_6_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr gripper_pub_;
@@ -85,6 +103,50 @@ private:
     }
 
     return normalized * max_linear;
+  }
+
+  void jointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
+  {
+    const size_t num_joints = std::min(msg->name.size(), msg->position.size());
+    for (size_t i = 0; i < num_joints; ++i)
+    {
+      if (msg->name[i] == GRIPPER_STATE_NAME)
+      {
+        current_gripper_position_ = msg->position[i];
+        has_gripper_position_ = true;
+        return;
+      }
+    }
+  }
+
+  double applyGripperLimit(double gripper_command)
+  {
+    if (gripper_command == 0.0)
+    {
+      return 0.0;
+    }
+
+    if (!has_gripper_position_)
+    {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(),
+        *get_clock(),
+        2000,
+        "gripper state is unavailable, halting gripper control for safety");
+      return 0.0;
+    }
+
+    if (gripper_command > 0.0 && current_gripper_position_ >= gripper_upper_rad_)
+    {
+      return 0.0;
+    }
+
+    if (gripper_command < 0.0 && current_gripper_position_ <= gripper_lower_rad_)
+    {
+      return 0.0;
+    }
+
+    return gripper_command;
   }
 
   void joyArmCartesianCallback(const sensor_msgs::msg::Joy::SharedPtr msg)
@@ -146,7 +208,7 @@ private:
       deadzone_x_,
       max_linear_x_);
 
-    gripper.data = gripper_open - gripper_close;
+    gripper.data = static_cast<float>(applyGripperLimit(gripper_open - gripper_close));
     gripper_pub_->publish(gripper);  
   }
 };

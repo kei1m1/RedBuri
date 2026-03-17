@@ -4,3 +4,5 @@ joy_arm_joint_node:
     deadzone_drive: 0.1
     drive_input_max: 0.9
     max_motor_rpm: 5.0
+    gripper_lower_deg: 0.0
+    gripper_upper_deg: 110.0

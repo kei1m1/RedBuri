@@ -21,6 +21,8 @@ public:
     deadzone_drive_ = declare_parameter<double>("deadzone_drive");
     drive_input_max_ = declare_parameter<double>("drive_input_max");
     max_motor_rpm_ = declare_parameter<double>("max_motor_rpm");
+    gripper_lower_rad_ = declare_parameter<double>("gripper_lower_deg") * DEG_TO_RAD;
+    gripper_upper_rad_ = declare_parameter<double>("gripper_upper_deg") * DEG_TO_RAD;
 
     load_joint_limits_from_robot_description();
 
@@ -52,8 +54,10 @@ public:
   }
 
 private:
+  static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
   static constexpr std::array<const char *, 6> JOINT_NAMES{
     "joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"};
+  static constexpr const char * GRIPPER_STATE_NAME = "gripper_state";
   const int next_button_{5};
   const int prev_button_{4};
   const int axis_forward_{5};
@@ -68,6 +72,10 @@ private:
   std::array<double, JOINT_NAMES.size()> joint_upper_limits_{};
   std::array<double, JOINT_NAMES.size()> current_joint_positions_{};
   std::array<bool, JOINT_NAMES.size()> has_joint_positions_{};
+  double gripper_lower_rad_{};
+  double gripper_upper_rad_{};
+  double current_gripper_position_{};
+  bool has_gripper_position_{false};
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
   rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr mode_sub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
@@ -127,6 +135,12 @@ private:
   {
     const size_t num_joints = std::min(msg->name.size(), msg->position.size());
     for (size_t i = 0; i < num_joints; ++i) {
+      if (msg->name[i] == GRIPPER_STATE_NAME) {
+        current_gripper_position_ = msg->position[i];
+        has_gripper_position_ = true;
+        continue;
+      }
+
       for (size_t joint_idx = 0; joint_idx < JOINT_NAMES.size(); ++joint_idx) {
         if (msg->name[i] == JOINT_NAMES[joint_idx]) {
           current_joint_positions_[joint_idx] = msg->position[i];
@@ -139,7 +153,32 @@ private:
 
   double apply_joint_limit(double motor_rpm)
   {
-    if (joint_num_ < 0 || joint_num_ >= static_cast<int>(JOINT_NAMES.size()) || motor_rpm == 0.0) {
+    if (motor_rpm == 0.0) {
+      return motor_rpm;
+    }
+
+    if (joint_num_ == 6) {
+      if (!has_gripper_position_) {
+        RCLCPP_WARN_THROTTLE(
+          get_logger(),
+          *get_clock(),
+          2000,
+          "gripper state is unavailable, halting gripper control for safety");
+        return 0.0;
+      }
+
+      if (motor_rpm > 0.0 && current_gripper_position_ >= gripper_upper_rad_) {
+        return 0.0;
+      }
+
+      if (motor_rpm < 0.0 && current_gripper_position_ <= gripper_lower_rad_) {
+        return 0.0;
+      }
+
+      return motor_rpm;
+    }
+
+    if (joint_num_ < 0 || joint_num_ >= static_cast<int>(JOINT_NAMES.size())) {
       return motor_rpm;
     }
 

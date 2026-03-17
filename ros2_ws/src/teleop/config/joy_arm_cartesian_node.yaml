@@ -10,3 +10,5 @@ joy_arm_cartesian_node:
     max_linear_x: 0.2
     max_linear_y: 0.2
     max_linear_z: 0.2
+    gripper_lower_deg: 0.0
+    gripper_upper_deg: 110.0
