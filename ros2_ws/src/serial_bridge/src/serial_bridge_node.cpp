@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <vector>
 #include "rclcpp/rclcpp.hpp"
-#include "redburi_msgs/msg/arm_motor.hpp"
+#include "redburi_msgs/msg/arm_command.hpp"
 #include "redburi_msgs/msg/base_command.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/float32.hpp"
@@ -45,10 +45,10 @@ public:
           static_cast<double>(latest_base_.target_steer_deg));
       });
 
-    arm_sub_ = create_subscription<redburi_msgs::msg::ArmMotor>(
-      "/arm_motor",
+    arm_sub_ = create_subscription<redburi_msgs::msg::ArmCommand>(
+      "/arm_cmd",
       10,
-      [this](const redburi_msgs::msg::ArmMotor::SharedPtr msg)
+      [this](const redburi_msgs::msg::ArmCommand::SharedPtr msg)
       {
         latest_arm_ = *msg;
         has_arm_ = true;
@@ -56,7 +56,7 @@ public:
       });
 
     joint_state_pub_ = create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
-    steer_state_pub_ = create_publisher<std_msgs::msg::Float32>("/steer_state", 10);
+    gripper_state_pub_ = create_publisher<std_msgs::msg::Float32>("/gripper_state", 10);
     raw_rx_line_pub_ = create_publisher<std_msgs::msg::String>("/stm32_rx_line", 10);
 
     openSerial();
@@ -88,18 +88,19 @@ private:
   bool has_base_{false};
   bool has_arm_{false};
   redburi_msgs::msg::BaseCommand latest_base_{};
-  redburi_msgs::msg::ArmMotor latest_arm_{};
+  redburi_msgs::msg::ArmCommand latest_arm_{};
   rclcpp::Time last_base_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time last_arm_time_{0, 0, RCL_ROS_TIME};
 
   rclcpp::Subscription<redburi_msgs::msg::BaseCommand>::SharedPtr base_sub_;
-  rclcpp::Subscription<redburi_msgs::msg::ArmMotor>::SharedPtr arm_sub_;
+  rclcpp::Subscription<redburi_msgs::msg::ArmCommand>::SharedPtr arm_sub_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
-  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr steer_state_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr gripper_state_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr raw_rx_line_pub_;
   rclcpp::TimerBase::SharedPtr tx_timer_;
   std::string rx_line_buffer_{};
   static constexpr size_t kArmJointCount = 6;
+  static constexpr size_t kJointStateCount = 7;
   const std::vector<std::string> joint_names_{
     "joint_1",
     "joint_2",
@@ -270,7 +271,7 @@ private:
     }
 
     redburi_msgs::msg::BaseCommand base{};
-    redburi_msgs::msg::ArmMotor arm{};
+    redburi_msgs::msg::ArmCommand arm{};
     const auto now_time = now();
     const auto timeout = rclcpp::Duration::from_seconds(command_timeout_sec_);
 
@@ -377,26 +378,19 @@ private:
 
     if (line[0] == 'J') {
       if (!parseCsvFloats(line, 'J', kArmJointCount, values) &&
-        !parseCsvFloats(line, 'J', kArmJointCount + 1, values))
+        !parseCsvFloats(line, 'J', kJointStateCount, values))
       {
         RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 2000, "failed to parse J line: %s", line.c_str());
         return;
       }
-      if (values.size() > kArmJointCount) {
-        values.resize(kArmJointCount);
+      if (values.size() > kJointStateCount) {
+        values.resize(kJointStateCount);
       }
       publishJointStates(values);
-      return;
-    }
-
-    if (line[0] == 'S') {
-      if (!parseCsvFloats(line, 'S', 1, values)) {
-        RCLCPP_WARN_THROTTLE(
-          get_logger(), *get_clock(), 2000, "failed to parse S line: %s", line.c_str());
-        return;
+      if (values.size() == kJointStateCount) {
+        publishGripperState(values[kArmJointCount]);
       }
-      publishSteerState(values[0]);
       return;
     }
 
@@ -409,20 +403,24 @@ private:
     constexpr double kJointScale = 1000.0;
     sensor_msgs::msg::JointState msg{};
     msg.header.stamp = now();
-    msg.name = joint_names_;
-    msg.position.reserve(values.size());
-    for (float value : values) {
+    const size_t joint_count = std::min(kArmJointCount, values.size());
+    msg.name.assign(joint_names_.begin(), joint_names_.begin() + joint_count);
+    msg.position.reserve(joint_count);
+    for (size_t i = 0; i < joint_count; ++i) {
+      const float value = values[i];
       msg.position.push_back(static_cast<double>(value) / kJointScale);
     }
     joint_state_pub_->publish(msg);
   }
 
-  void publishSteerState(float steer_deg)
+  void publishGripperState(float value)
   {
+    constexpr float kJointScale = 1000.0f;
     std_msgs::msg::Float32 msg{};
-    msg.data = steer_deg;
-    steer_state_pub_->publish(msg);
+    msg.data = value / kJointScale;
+    gripper_state_pub_->publish(msg);
   }
+
 };
 
 int main(int argc, char ** argv)

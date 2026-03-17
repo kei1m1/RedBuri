@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
-#include "redburi_msgs/msg/arm_motor.hpp"
+#include "redburi_msgs/msg/arm_command.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 
 class ArmJointStateEstimatorNode : public rclcpp::Node
@@ -15,7 +15,7 @@ class ArmJointStateEstimatorNode : public rclcpp::Node
 public:
   ArmJointStateEstimatorNode() : Node("arm_joint_state_estimator_node")
   {
-    arm_command_topic_ = declare_parameter<std::string>("arm_command_topic", "/arm_motor");
+    arm_command_topic_ = declare_parameter<std::string>("arm_command_topic", "/arm_cmd");
     joint_state_topic_ = declare_parameter<std::string>("joint_state_topic", "/joint_states");
     frame_id_ = declare_parameter<std::string>("frame_id", "base_link");
     publish_rate_hz_ = declare_parameter<double>("publish_rate_hz", 60.0);
@@ -47,10 +47,10 @@ public:
     last_update_time_ = now();
     last_command_time_ = last_update_time_;
 
-    arm_sub_ = create_subscription<redburi_msgs::msg::ArmMotor>(
+    arm_sub_ = create_subscription<redburi_msgs::msg::ArmCommand>(
       arm_command_topic_,
       10,
-      [this](const redburi_msgs::msg::ArmMotor::SharedPtr msg)
+      [this](const redburi_msgs::msg::ArmCommand::SharedPtr msg)
       {
         armCommandCallback(msg);
       });
@@ -91,7 +91,7 @@ private:
   rclcpp::Time last_update_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time last_command_time_{0, 0, RCL_ROS_TIME};
 
-  rclcpp::Subscription<redburi_msgs::msg::ArmMotor>::SharedPtr arm_sub_;
+  rclcpp::Subscription<redburi_msgs::msg::ArmCommand>::SharedPtr arm_sub_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
   rclcpp::TimerBase::SharedPtr publish_timer_;
 
@@ -116,7 +116,7 @@ private:
     return result;
   }
 
-  void armCommandCallback(const redburi_msgs::msg::ArmMotor::SharedPtr msg)
+  void armCommandCallback(const redburi_msgs::msg::ArmCommand::SharedPtr msg)
   {
     commanded_rpm_[0] = static_cast<double>(msg->joint_1_rpm);
     commanded_rpm_[1] = static_cast<double>(msg->joint_2_rpm);
