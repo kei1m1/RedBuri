@@ -4,9 +4,8 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-
 #include "rclcpp/rclcpp.hpp"
-#include "redburi_msgs/msg/arm_motor.hpp"
+#include "redburi_msgs/msg/arm_command.hpp"
 #include "std_msgs/msg/float32.hpp"
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
 
@@ -19,7 +18,7 @@ public:
     max_gripper_rpm_ = declare_parameter<double>("max_gripper_rpm", 30.0);
     servo_trajectory_topic_ = declare_parameter<std::string>(
       "servo_trajectory_topic", "/servo_node/joint_trajectory");
-    arm_command_topic_ = declare_parameter<std::string>("arm_command_topic", "/arm_motor");
+    arm_command_topic_ = declare_parameter<std::string>("arm_command_topic", "/arm_cmd");
     gripper_command_topic_ = declare_parameter<std::string>(
       "gripper_command_topic", "/arm_gripper");
 
@@ -41,7 +40,7 @@ public:
       }
     );
 
-    arm_pub_ = create_publisher<redburi_msgs::msg::ArmMotor>(arm_command_topic_, 10);
+    arm_pub_ = create_publisher<redburi_msgs::msg::ArmCommand>(arm_command_topic_, 10);
   }
 
 private:
@@ -49,7 +48,7 @@ private:
 
   rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_sub_;
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr gripper_sub_;
-  rclcpp::Publisher<redburi_msgs::msg::ArmMotor>::SharedPtr arm_pub_;
+  rclcpp::Publisher<redburi_msgs::msg::ArmCommand>::SharedPtr arm_pub_;
 
   double max_joint_rpm_{};
   double max_gripper_rpm_{};
@@ -85,18 +84,18 @@ private:
 
   void trajectoryCallback(const trajectory_msgs::msg::JointTrajectory::SharedPtr msg)
   {
-    redburi_msgs::msg::ArmMotor arm{};
-    arm.gripper_rpm = clampRpm(
+    redburi_msgs::msg::ArmCommand arm_command{};
+    arm_command.gripper_rpm = clampRpm(
       latest_gripper_command_ * max_gripper_rpm_, max_gripper_rpm_);
 
     if (msg->points.empty() || msg->joint_names.empty()) {
-      arm_pub_->publish(arm);
+      arm_pub_->publish(arm_command);
       return;
     }
 
     const auto & point = msg->points.back();
     if (point.velocities.empty()) {
-      arm_pub_->publish(arm);
+      arm_pub_->publish(arm_command);
       return;
     }
 
@@ -113,14 +112,14 @@ private:
       joint_rpm[static_cast<size_t>(idx)] = clampRpm(rpm, max_joint_rpm_);
     }
 
-    arm.joint_1_rpm = joint_rpm[0];
-    arm.joint_2_rpm = joint_rpm[1];
-    arm.joint_3_rpm = joint_rpm[2];
-    arm.joint_4_rpm = joint_rpm[3];
-    arm.joint_5_rpm = joint_rpm[4];
-    arm.joint_6_rpm = joint_rpm[5];
+    arm_command.joint_1_rpm = joint_rpm[0];
+    arm_command.joint_2_rpm = joint_rpm[1];
+    arm_command.joint_3_rpm = joint_rpm[2];
+    arm_command.joint_4_rpm = joint_rpm[3];
+    arm_command.joint_5_rpm = joint_rpm[4];
+    arm_command.joint_6_rpm = joint_rpm[5];
 
-    arm_pub_->publish(arm);
+    arm_pub_->publish(arm_command);
   }
 };
 

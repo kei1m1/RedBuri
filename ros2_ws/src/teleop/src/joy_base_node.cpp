@@ -4,6 +4,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
 #include "redburi_msgs/msg/base_command.hpp"
+#include "std_msgs/msg/u_int8.hpp"
 
 class JoyBaseNode : public rclcpp::Node
 {
@@ -23,11 +24,19 @@ public:
     max_steer_deg_ = declare_parameter<double>("max_steer_deg");
 
     joy_sub_ = create_subscription<sensor_msgs::msg::Joy>(
-      "/joy_base",
+      "/joy",
       10,
       [this](sensor_msgs::msg::Joy::SharedPtr msg)
       {
         joyCallback(msg);
+      }
+    );
+    mode_sub_ = create_subscription<std_msgs::msg::UInt8>(
+      "/control_mode",
+      10,
+      [this](std_msgs::msg::UInt8::SharedPtr msg)
+      {
+        control_mode_ = msg->data;
       }
     );
     base_pub_ = create_publisher<redburi_msgs::msg::BaseCommand>("/base_cmd", 10);
@@ -51,7 +60,9 @@ private:
   double max_steer_deg_{};
 
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
+  rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr mode_sub_;
   rclcpp::Publisher<redburi_msgs::msg::BaseCommand>::SharedPtr base_pub_;
+  uint8_t control_mode_{0};
 
   double scaleAxis(double input, double input_max, double deadzone, double max_output) const
   {
@@ -78,6 +89,12 @@ private:
     double drive{};
     double steer{};
     double spin{};
+
+    if(control_mode_ != 1)
+    {
+      base_pub_->publish(base);
+      return;
+    }
 
     const size_t max_idx = static_cast<size_t>(
       std::max({axis_forward_, axis_backward_, axis_steer_, axis_spin_}));

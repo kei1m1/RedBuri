@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <vector>
 #include "rclcpp/rclcpp.hpp"
-#include "redburi_msgs/msg/arm_motor.hpp"
+#include "redburi_msgs/msg/arm_command.hpp"
 #include "redburi_msgs/msg/base_command.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/float32.hpp"
@@ -45,10 +45,10 @@ public:
           static_cast<double>(latest_base_.target_steer_deg));
       });
 
-    arm_sub_ = create_subscription<redburi_msgs::msg::ArmMotor>(
-      "/arm_motor",
+    arm_sub_ = create_subscription<redburi_msgs::msg::ArmCommand>(
+      "/arm_cmd",
       10,
-      [this](const redburi_msgs::msg::ArmMotor::SharedPtr msg)
+      [this](const redburi_msgs::msg::ArmCommand::SharedPtr msg)
       {
         latest_arm_ = *msg;
         has_arm_ = true;
@@ -88,12 +88,12 @@ private:
   bool has_base_{false};
   bool has_arm_{false};
   redburi_msgs::msg::BaseCommand latest_base_{};
-  redburi_msgs::msg::ArmMotor latest_arm_{};
+  redburi_msgs::msg::ArmCommand latest_arm_{};
   rclcpp::Time last_base_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time last_arm_time_{0, 0, RCL_ROS_TIME};
 
   rclcpp::Subscription<redburi_msgs::msg::BaseCommand>::SharedPtr base_sub_;
-  rclcpp::Subscription<redburi_msgs::msg::ArmMotor>::SharedPtr arm_sub_;
+  rclcpp::Subscription<redburi_msgs::msg::ArmCommand>::SharedPtr arm_sub_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr steer_state_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr raw_rx_line_pub_;
@@ -270,7 +270,7 @@ private:
     }
 
     redburi_msgs::msg::BaseCommand base{};
-    redburi_msgs::msg::ArmMotor arm{};
+    redburi_msgs::msg::ArmCommand arm{};
     const auto now_time = now();
     const auto timeout = rclcpp::Duration::from_seconds(command_timeout_sec_);
 

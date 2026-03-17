@@ -5,6 +5,7 @@
 #include <string>
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
+#include "std_msgs/msg/u_int8.hpp"
 
 class JoyModeNode : public rclcpp::Node
 {
@@ -19,9 +20,7 @@ public:
         joyCallback(msg);
       }
     );
-    joy_base_pub_ = create_publisher<sensor_msgs::msg::Joy>("/joy_base", 10);
-    joy_arm_joint_pub_ = create_publisher<sensor_msgs::msg::Joy>("/joy_arm_joint", 10);
-    joy_arm_cartesian_pub_ = create_publisher<sensor_msgs::msg::Joy>("/joy_arm_cartesian", 10);
+    mode_pub_ = create_publisher<std_msgs::msg::UInt8>("/control_mode", 10);
     
     detectLedPaths();
     setLedColor(0, 0, 255);
@@ -37,9 +36,7 @@ private:
   std::string led_green_path_{};
   std::string led_blue_path_{};
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
-  rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_base_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_arm_joint_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_arm_cartesian_pub_;
+  rclcpp::Publisher<std_msgs::msg::UInt8>::SharedPtr mode_pub_;
 
   enum class ControlMode
   {
@@ -169,26 +166,9 @@ private:
       }
     }
 
-    switch(mode_)
-    {
-      case ControlMode::Disabled:
-        break;
-
-      case ControlMode::Base:
-        joy_base_pub_->publish(*msg);
-        break;
-
-      case ControlMode::ArmCartesian:
-        joy_arm_cartesian_pub_->publish(*msg);
-        break;
-
-      case ControlMode::ArmJoint:
-        joy_arm_joint_pub_->publish(*msg);
-        break;
-
-      default:
-        break;
-    }
+    std_msgs::msg::UInt8 mode_msg{};
+    mode_msg.data = static_cast<uint8_t>(mode_);
+    mode_pub_->publish(mode_msg);
   }
 };
 

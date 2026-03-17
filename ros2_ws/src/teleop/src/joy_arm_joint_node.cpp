@@ -2,15 +2,15 @@
 #include <array>
 #include <cmath>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <chrono>
-
 #include "rclcpp/parameter_client.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "redburi_msgs/msg/arm_motor.hpp"
+#include "redburi_msgs/msg/arm_command.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "sensor_msgs/msg/joy.hpp"
-#include "std_msgs/msg/float32.hpp"
+#include "std_msgs/msg/u_int8.hpp"
 #include "urdf/model.h"
 
 class JoyArmJointNode : public rclcpp::Node
@@ -22,16 +22,22 @@ public:
     drive_input_max_ = declare_parameter<double>("drive_input_max");
     max_motor_rpm_ = declare_parameter<double>("max_motor_rpm");
 
-    joint_lower_limits_.fill(-1.2217);
-    joint_upper_limits_.fill(1.2217);
     load_joint_limits_from_robot_description();
 
     joy_sub_ = create_subscription<sensor_msgs::msg::Joy>(
-      "/joy_arm_joint",
+      "/joy",
       10,
       [this](sensor_msgs::msg::Joy::SharedPtr msg)
       {
         joy_arm_joint_callback(msg);
+      }
+    );
+    mode_sub_ = create_subscription<std_msgs::msg::UInt8>(
+      "/control_mode",
+      10,
+      [this](std_msgs::msg::UInt8::SharedPtr msg)
+      {
+        control_mode_ = msg->data;
       }
     );
     joint_state_sub_ = create_subscription<sensor_msgs::msg::JointState>(
@@ -42,8 +48,7 @@ public:
         joint_state_callback(msg);
       }
     );
-    arm_pub_ = create_publisher<redburi_msgs::msg::ArmMotor>("/arm_motor", 10);
-    gripper_pub_ = create_publisher<std_msgs::msg::Float32>("/arm_gripper", 10);
+    arm_pub_ = create_publisher<redburi_msgs::msg::ArmCommand>("/arm_cmd", 10);
   }
 
 private:
@@ -64,9 +69,10 @@ private:
   std::array<double, JOINT_NAMES.size()> current_joint_positions_{};
   std::array<bool, JOINT_NAMES.size()> has_joint_positions_{};
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
+  rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr mode_sub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
-  rclcpp::Publisher<redburi_msgs::msg::ArmMotor>::SharedPtr arm_pub_;
-  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr gripper_pub_;
+  rclcpp::Publisher<redburi_msgs::msg::ArmCommand>::SharedPtr arm_pub_;
+  uint8_t control_mode_{0};
 
   double scale_axis(double input, double input_max, double deadzone) const
   {
@@ -85,28 +91,19 @@ private:
   void load_joint_limits_from_urdf(const std::string & robot_description)
   {
     if (robot_description.empty()) {
-      RCLCPP_WARN(
-        get_logger(),
-        "robot_description is empty, falling back to default joint limits");
-      return;
+      throw std::runtime_error("robot_description is empty");
     }
 
     urdf::Model model;
     if (!model.initString(robot_description)) {
-      RCLCPP_WARN(
-        get_logger(),
-        "failed to parse robot_description, falling back to default joint limits");
-      return;
+      throw std::runtime_error("failed to parse robot_description");
     }
 
     for (size_t joint_idx = 0; joint_idx < JOINT_NAMES.size(); ++joint_idx) {
       const auto joint = model.getJoint(JOINT_NAMES[joint_idx]);
       if (!joint || !joint->limits) {
-        RCLCPP_WARN(
-          get_logger(),
-          "joint limit for %s not found in URDF, using default",
-          JOINT_NAMES[joint_idx]);
-        continue;
+        throw std::runtime_error(
+          std::string("joint limit not found for ") + JOINT_NAMES[joint_idx]);
       }
 
       joint_lower_limits_[joint_idx] = joint->limits->lower;
@@ -118,10 +115,7 @@ private:
   {
     auto param_client = std::make_shared<rclcpp::SyncParametersClient>(this, "robot_state_publisher");
     if (!param_client->wait_for_service(std::chrono::seconds(2))) {
-      RCLCPP_WARN(
-        get_logger(),
-        "robot_state_publisher parameter service is unavailable, falling back to default joint limits");
-      return;
+      throw std::runtime_error("robot_state_publisher parameter service is unavailable");
     }
 
     const auto robot_description =
@@ -177,35 +171,35 @@ private:
 
   void publishArmMotor(double motor_rpm)
   {
-    redburi_msgs::msg::ArmMotor arm{};
+    redburi_msgs::msg::ArmCommand arm_command{};
 
     switch (joint_num_) {
       case 0:
-        arm.joint_1_rpm = motor_rpm;
+        arm_command.joint_1_rpm = motor_rpm;
         break;
       case 1:
-        arm.joint_2_rpm = motor_rpm;
+        arm_command.joint_2_rpm = motor_rpm;
         break;
       case 2:
-        arm.joint_3_rpm = motor_rpm;
+        arm_command.joint_3_rpm = motor_rpm;
         break;
       case 3:
-        arm.joint_4_rpm = motor_rpm;
+        arm_command.joint_4_rpm = motor_rpm;
         break;
       case 4:
-        arm.joint_5_rpm = motor_rpm;
+        arm_command.joint_5_rpm = motor_rpm;
         break;
       case 5:
-        arm.joint_6_rpm = motor_rpm;
+        arm_command.joint_6_rpm = motor_rpm;
         break;
       case 6:
-        arm.gripper_rpm = motor_rpm;
+        arm_command.gripper_rpm = motor_rpm;
         break;
       default:
         break;
     }
 
-    arm_pub_->publish(arm);
+    arm_pub_->publish(arm_command);
   }
 
   void joy_arm_joint_callback(sensor_msgs::msg::Joy::SharedPtr msg)
@@ -216,6 +210,12 @@ private:
     double forward{};
     double backward{};
     double drive{};
+    
+    if(control_mode_ != 3)
+    {
+      publishArmMotor(0.0);
+      return;
+    }
 
     if(msg->buttons.size() <= max_button_idx || msg->axes.size() <= max_axis_idx)
     {

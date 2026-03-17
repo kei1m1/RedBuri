@@ -1,7 +1,7 @@
-# Estimated joint states from ArmMotor RPM commands.
+# Estimated joint states from ArmCommand RPM commands.
 arm_joint_state_estimator_node:
   ros__parameters:
-    arm_command_topic: /arm_motor
+    arm_command_topic: /arm_cmd
     joint_state_topic: /joint_states
     frame_id: base_link
     publish_rate_hz: 60.0
