@@ -6,8 +6,9 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
 
 
@@ -22,6 +23,18 @@ def generate_launch_description():
     joy_dev = LaunchConfiguration("joy_dev")
     joy_deadzone = LaunchConfiguration("joy_deadzone")
     joy_autorepeat_rate = LaunchConfiguration("joy_autorepeat_rate")
+    arm_joint_output_mode = LaunchConfiguration("arm_joint_output_mode")
+
+    teleop_share = FindPackageShare("teleop")
+
+    joy_base_param = PathJoinSubstitution([teleop_share, "config", "joy_base_node.yaml"])
+    joy_arm_joint_param = PathJoinSubstitution([teleop_share, "config", "joy_arm_joint_node.yaml"])
+    joy_arm_cartesian_param = PathJoinSubstitution(
+        [teleop_share, "config", "joy_arm_cartesian_node.yaml"]
+    )
+    arm_joint_state_estimator_param = PathJoinSubstitution(
+        [teleop_share, "config", "arm_joint_state_estimator_node.yaml"]
+    )
 
     moveit_config = MoveItConfigsBuilder(
         "redburi_arm", package_name="redburi_moveit"
@@ -35,20 +48,6 @@ def generate_launch_description():
         get_package_share_directory("redburi_moveit"),
         "config",
         "moveit.rviz",
-    )
-
-    teleop_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("redburi_launch"), "launch", "teleop.launch.py"
-            )
-        ),
-        launch_arguments={
-            "joy_dev": joy_dev,
-            "joy_deadzone": joy_deadzone,
-            "joy_autorepeat_rate": joy_autorepeat_rate,
-            "arm_joint_output_mode": "joint_jog",
-        }.items(),
     )
 
     robot_state_publisher_launch = IncludeLaunchDescription(
@@ -122,11 +121,58 @@ def generate_launch_description():
             DeclareLaunchArgument("joy_dev", default_value="/dev/input/js0"),
             DeclareLaunchArgument("joy_deadzone", default_value="0.1"),
             DeclareLaunchArgument("joy_autorepeat_rate", default_value="60.0"),
+            DeclareLaunchArgument("arm_joint_output_mode", default_value="joint_jog"),
             static_virtual_joint_tfs_launch,
             robot_state_publisher_launch,
             servo_node,
             servo_arm_motor_node,
-            teleop_launch,
+            Node(
+                package="joy",
+                executable="joy_node",
+                name="joy_node",
+                output="screen",
+                parameters=[
+                    {
+                        "dev": joy_dev,
+                        "deadzone": joy_deadzone,
+                        "autorepeat_rate": joy_autorepeat_rate,
+                    }
+                ],
+            ),
+            Node(
+                package="teleop",
+                executable="joy_mode_node",
+                name="joy_mode_node",
+                output="screen",
+            ),
+            Node(
+                package="teleop",
+                executable="joy_base_node",
+                name="joy_base_node",
+                output="screen",
+                parameters=[joy_base_param],
+            ),
+            Node(
+                package="teleop",
+                executable="joy_arm_joint_node",
+                name="joy_arm_joint_node",
+                output="screen",
+                parameters=[joy_arm_joint_param, {"output_mode": arm_joint_output_mode}],
+            ),
+            Node(
+                package="teleop",
+                executable="joy_arm_cartesian_node",
+                name="joy_arm_cartesian_node",
+                output="screen",
+                parameters=[joy_arm_cartesian_param],
+            ),
+            Node(
+                package="teleop",
+                executable="arm_joint_state_estimator_node",
+                name="arm_joint_state_estimator_node",
+                output="screen",
+                parameters=[arm_joint_state_estimator_param],
+            ),
             rviz_node,
             start_servo,
         ]
