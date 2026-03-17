@@ -8,6 +8,10 @@ namespace {
 constexpr size_t kMaxStsInstances = 8U;
 STS3215* s_stsInstances[kMaxStsInstances] = {nullptr};
 size_t s_stsInstanceCount = 0U;
+
+constexpr size_t kMaxStsSchedulers = 8U;
+STS3215Scheduler* s_stsSchedulers[kMaxStsSchedulers] = {nullptr};
+size_t s_stsSchedulerCount = 0U;
 }
 
 STS3215::STS3215(UART_HandleTypeDef* huart, uint8_t id,
@@ -26,6 +30,143 @@ STS3215::STS3215(UART_HandleTypeDef* huart, uint8_t id,
   ledPort_(ledPort), ledPin_(ledPin)
 {
     registerInstance(this);
+}
+
+STS3215Scheduler::STS3215Scheduler(STS3215& servo)
+    : servo_(servo)
+{
+    registerInstance(this);
+}
+
+void STS3215Scheduler::registerInstance(STS3215Scheduler* inst)
+{
+    if (inst == nullptr) return;
+    for (size_t i = 0; i < s_stsSchedulerCount; ++i) {
+        if (s_stsSchedulers[i] == inst) return;
+    }
+    if (s_stsSchedulerCount < kMaxStsSchedulers) {
+        s_stsSchedulers[s_stsSchedulerCount] = inst;
+        ++s_stsSchedulerCount;
+    }
+}
+
+void STS3215Scheduler::setRequestIntervalTicks(uint32_t ticks)
+{
+    if (ticks < 1U) ticks = 1U;
+    req_interval_ticks_ = ticks;
+}
+
+void STS3215Scheduler::setCommandIntervalTicks(uint32_t ticks)
+{
+    if (ticks < 1U) ticks = 1U;
+    cmd_interval_ticks_ = ticks;
+}
+
+void STS3215Scheduler::setTargetDeg(float target_deg)
+{
+    use_clamped_ = false;
+    if (target_deg < 0.0f) target_deg = 0.0f;
+    if (target_deg > 360.0f) target_deg = 360.0f;
+    target_deg_ = target_deg;
+}
+
+void STS3215Scheduler::setTargetDegSigned(float target_deg)
+{
+    use_clamped_ = false;
+    float deg = target_deg;
+    if (deg < -180.0f) deg = -180.0f;
+    if (deg > 180.0f) deg = 180.0f;
+    if (deg < 0.0f) deg += 360.0f;
+    setTargetDeg(deg);
+}
+
+void STS3215Scheduler::setTargetDegClamped(float target_deg)
+{
+    use_clamped_ = true;
+    if (target_deg < 0.0f) target_deg = 0.0f;
+    if (target_deg > 360.0f) target_deg = 360.0f;
+    target_deg_ = target_deg;
+}
+
+void STS3215Scheduler::setTargetDegSignedClamped(float target_deg)
+{
+    float deg = target_deg;
+    if (deg < -180.0f) deg = -180.0f;
+    if (deg > 180.0f) deg = 180.0f;
+    if (deg < 0.0f) deg += 360.0f;
+    setTargetDegClamped(deg);
+}
+
+void STS3215Scheduler::update(uint32_t now_ms)
+{
+    servo_.pollUart(now_ms);
+
+    if (req_flag_ && !servo_.isUartBusy()) {
+        if (servo_.requestPositionIT()) {
+            req_flag_ = 0;
+        }
+    }
+
+    if (cmd_flag_ && !servo_.isUartBusy()) {
+        if (use_clamped_) {
+            if (servo_.hasLastPosition()) {
+                if (servo_.setClampedTargetDeg(target_deg_, 0, 500) == HAL_OK) {
+                    cmd_flag_ = 0;
+                }
+            }
+        } else {
+            if (servo_.setAngleFromLastZeroDeg(target_deg_, 0, 500) == HAL_OK) {
+                cmd_flag_ = 0;
+            }
+        }
+    }
+
+    if (servo_.hasLastPosition()) {
+        float deg = 0.0f;
+        if (servo_.updateRelativeDegFromLast(&deg)) {
+            current_deg_ = deg;
+            current_valid_ = true;
+        }
+    }
+}
+
+bool STS3215Scheduler::getCurrentDeg(float* out_deg) const
+{
+    if (out_deg == nullptr) return false;
+    if (!current_valid_) return false;
+    *out_deg = current_deg_;
+    return true;
+}
+
+bool STS3215Scheduler::getCurrentDegSigned(float* out_deg) const
+{
+    if (out_deg == nullptr) return false;
+    if (!current_valid_) return false;
+    float deg = current_deg_;
+    if (deg > 180.0f) deg -= 360.0f;
+    *out_deg = deg;
+    return true;
+}
+
+float STS3215Scheduler::getCurrentRad() const
+{
+    if (!current_valid_) return 0.0f;
+    return current_deg_ * 3.1415926535f / 180.0f;
+}
+
+void STS3215Scheduler::onTimerTickAll()
+{
+    for (size_t i = 0; i < s_stsSchedulerCount; ++i) {
+        STS3215Scheduler* inst = s_stsSchedulers[i];
+        if (inst == nullptr) continue;
+        ++inst->tick_;
+        if (inst->tick_ % inst->req_interval_ticks_ == 0U) {
+            inst->req_flag_ = 1;
+        }
+        if (inst->tick_ % inst->cmd_interval_ticks_ == 0U) {
+            inst->cmd_flag_ = 1;
+        }
+    }
 }
 
 uint8_t STS3215::calcChecksum(const uint8_t* msg, size_t len) {
@@ -184,6 +325,13 @@ float STS3215::getAngleFromZeroDegFromLast() const{
     return ticksToDeg(static_cast<uint16_t>(rel));
 }
 
+float STS3215::getAngleFromZeroDegSignedFromLast() const
+{
+    const float deg = getAngleFromZeroDegFromLast();
+    if (deg < 0.0f) return deg;
+    return (deg > 180.0f) ? (deg - 360.0f) : deg;
+}
+
 bool STS3215::updateRelativeDegFromLast(float* out_deg)
 {
     if (out_deg == nullptr) return false;
@@ -205,6 +353,16 @@ HAL_StatusTypeDef STS3215::setAngleFromLastZeroDeg(float target_deg,
         if (!captureZeroFromLast()) return HAL_ERROR;
     }
     return setAngleFromZeroDeg(target_deg, time_ms, speed);
+}
+
+HAL_StatusTypeDef STS3215::setAngleFromLastZeroDegSigned(float target_deg,
+                                                         uint16_t time_ms,
+                                                         uint16_t speed)
+{
+    if (!zeroCaptured_) {
+        if (!captureZeroFromLast()) return HAL_ERROR;
+    }
+    return setAngleFromZeroDegSigned(target_deg, time_ms, speed);
 }
 
 void STS3215::onUartTxCplt(UART_HandleTypeDef* huart)
@@ -476,6 +634,13 @@ float STS3215::getAngleFromZeroDeg(uint32_t timeout_ms) {
     return deg;
 }
 
+float STS3215::getAngleFromZeroDegSigned(uint32_t timeout_ms)
+{
+    const float deg = getAngleFromZeroDeg(timeout_ms);
+    if (deg < 0.0f) return deg;
+    return (deg > 180.0f) ? (deg - 360.0f) : deg;
+}
+
 HAL_StatusTypeDef STS3215::setAngleFromZeroDeg(float angle_deg, uint16_t time_ms, uint16_t speed) {
     if (!zeroCaptured_) {
         if (captureZero(40) != HAL_OK) return HAL_ERROR;
@@ -492,12 +657,24 @@ HAL_StatusTypeDef STS3215::setAngleFromZeroDeg(float angle_deg, uint16_t time_ms
     return st;
 }
 
+HAL_StatusTypeDef STS3215::setAngleFromZeroDegSigned(float target_deg,
+                                                     uint16_t time_ms,
+                                                     uint16_t speed)
+{
+    float deg = target_deg;
+    if (deg < -180.0f) deg = -180.0f;
+    if (deg > 180.0f) deg = 180.0f;
+    if (deg < 0.0f) deg += 360.0f;
+    return setAngleFromZeroDeg(deg, time_ms, speed);
+}
+
 HAL_StatusTypeDef STS3215::setClampedTargetDeg(float angle_deg, uint16_t time_ms, uint16_t speed) {
     const float clamped = clampDeg01(angle_deg);
-    // 360.0degは0degと同値になるため、実際の指令は1tick手前にする
+    // 360.0degは0degと同値になるため、実際の指令は2tick手前にする(=4094tick相当)
     float command_deg = clamped;
     if (clamped >= 360.0f) {
-        command_deg = 360.0f - (360.0f / 4096.0f);
+        constexpr float kTickDeg = 360.0f / 4096.0f;
+        command_deg = 360.0f - (2.0f * kTickDeg);
     }
     const HAL_StatusTypeDef st = setAngleFromZeroDeg(command_deg, time_ms, speed);
     if (st == HAL_OK) {

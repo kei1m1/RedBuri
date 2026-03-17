@@ -58,6 +58,8 @@ public:
     // ゼロ基準からの現在角度[deg]（0.0～360.0未満）/ 失敗時 -1.0f
     float getAngleFromZeroDeg(uint32_t timeout_ms = 40);
     float getCurrentDegFromZero(uint32_t timeout_ms = 40) { return getAngleFromZeroDeg(timeout_ms); }
+    // ゼロ基準の角度を -180..+180 に正規化
+    float getAngleFromZeroDegSigned(uint32_t timeout_ms = 40);
     // ゼロ基準角度の正方向を反転（true: 目標角増加で逆回転側）
     void setZeroDirectionReversed(bool reversed) {
         zeroDirReversed_ = reversed;
@@ -95,10 +97,18 @@ public:
     float getLastAngleDeg() const { return last_pos_valid_ ? ticksToDeg(static_cast<uint16_t>(last_pos_)) : -1.0f; }
     bool captureZeroFromLast();
     float getAngleFromZeroDegFromLast() const;
+    float getAngleFromZeroDegSignedFromLast() const;
     bool updateRelativeDegFromLast(float* out_deg);
     HAL_StatusTypeDef setAngleFromLastZeroDeg(float target_deg,
                                               uint16_t time_ms = 0,
                                               uint16_t speed = 0);
+    // -180..+180 指定（ゼロ基準）
+    HAL_StatusTypeDef setAngleFromZeroDegSigned(float target_deg,
+                                                uint16_t time_ms = 0,
+                                                uint16_t speed = 0);
+    HAL_StatusTypeDef setAngleFromLastZeroDegSigned(float target_deg,
+                                                    uint16_t time_ms = 0,
+                                                    uint16_t speed = 0);
     static void onUartTxCplt(UART_HandleTypeDef* huart);
     static void onUartRxCplt(UART_HandleTypeDef* huart);
     static void onUartError(UART_HandleTypeDef* huart);
@@ -144,4 +154,48 @@ private:
     inline void toRx() { HAL_HalfDuplex_EnableReceiver(huart_);   }
     inline void ledOn()  { if (ledPort_) HAL_GPIO_WritePin(ledPort_, ledPin_, GPIO_PIN_SET); }
     inline void ledOff() { if (ledPort_) HAL_GPIO_WritePin(ledPort_, ledPin_, GPIO_PIN_RESET); }
+};
+
+// Simple scheduler for non-blocking STS3215 control using timer ticks.
+// Call STS3215Scheduler::onTimerTickAll() from a periodic timer ISR (e.g., TIM6 1kHz).
+class STS3215Scheduler
+{
+public:
+    explicit STS3215Scheduler(STS3215& servo);
+
+    // Configure tick intervals (in timer ticks, e.g. 1kHz -> 1 tick = 1ms).
+    void setRequestIntervalTicks(uint32_t ticks);
+    void setCommandIntervalTicks(uint32_t ticks);
+
+    // Target angle in degrees (0..360 clamped).
+    void setTargetDeg(float target_deg);
+    void setTargetDegSigned(float target_deg);
+    // Clamp at [0..360], and treat 360 as max tick (avoid wrap to 0)
+    void setTargetDegClamped(float target_deg);
+    void setTargetDegSignedClamped(float target_deg);
+
+    // Call from main loop.
+    void update(uint32_t now_ms);
+
+    bool getCurrentDeg(float* out_deg) const;
+    bool getCurrentDegSigned(float* out_deg) const;
+    float getCurrentRad() const;
+    bool hasCurrent() const { return current_valid_; }
+
+    // Call from timer ISR.
+    static void onTimerTickAll();
+
+private:
+    static void registerInstance(STS3215Scheduler* inst);
+
+    STS3215& servo_;
+    float target_deg_{0.0f};
+    bool use_clamped_{false};
+    float current_deg_{0.0f};
+    bool current_valid_{false};
+    uint32_t tick_{0};
+    uint32_t req_interval_ticks_{50};
+    uint32_t cmd_interval_ticks_{20};
+    volatile uint8_t req_flag_{0};
+    volatile uint8_t cmd_flag_{0};
 };
