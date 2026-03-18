@@ -127,14 +127,14 @@ private:
 
     if(right_spin != left_spin)
     {
+      base.target_steer_deg = 90.0;
+
       if(right_spin != 0)
       {
-        base.target_steer_deg = -90.0;
-        base.motor_rpm = spin_rpm_;
+        base.motor_rpm = -spin_rpm_;
       }
       else
       {
-        base.target_steer_deg = 90.0;
         base.motor_rpm = spin_rpm_;
       }
     }
